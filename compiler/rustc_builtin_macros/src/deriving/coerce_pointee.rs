@@ -78,27 +78,31 @@ pub(crate) fn expand_deriving_coerce_pointee(
         })
         .collect();
 
-    let pointee_param_idx = if type_params.is_empty() {
-        // `#[derive(CoercePointee)]` requires at least one generic type on the target `struct`
-        cx.dcx().emit_err(RequireOneGeneric { span });
-        return;
-    } else if type_params.len() == 1 {
-        // Regardless of the only type param being designed as `#[pointee]` or not, we can just use it as such
-        type_params[0].0
-    } else {
-        let mut pointees = type_params
-            .iter()
-            .filter_map(|&(idx, span, is_pointee)| is_pointee.then_some((idx, span)))
-            .fuse();
-        match (pointees.next(), pointees.next()) {
-            (Some((idx, _span)), None) => idx,
-            (None, _) => {
-                cx.dcx().emit_err(RequireOnePointee { span });
-                return;
-            }
-            (Some((_, one)), Some((_, another))) => {
-                cx.dcx().emit_err(TooManyPointees { one, another });
-                return;
+    let pointee_param_idx = match type_params[..] {
+        [] => {
+            // `#[derive(CoercePointee)]` requires at least one generic type on the target `struct`
+            cx.dcx().emit_err(RequireOneGeneric { span });
+            return;
+        }
+        [(idx, ..)] => {
+            // Regardless of the only type param being designed as `#[pointee]` or not, we can just use it as such
+            idx
+        }
+        _ => {
+            let mut pointees = type_params
+                .iter()
+                .filter_map(|&(idx, span, is_pointee)| is_pointee.then_some((idx, span)))
+                .fuse();
+            match (pointees.next(), pointees.next()) {
+                (Some((idx, _span)), None) => idx,
+                (None, _) => {
+                    cx.dcx().emit_err(RequireOnePointee { span });
+                    return;
+                }
+                (Some((_, one)), Some((_, another))) => {
+                    cx.dcx().emit_err(TooManyPointees { one, another });
+                    return;
+                }
             }
         }
     };
