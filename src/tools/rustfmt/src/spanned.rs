@@ -27,10 +27,10 @@ impl<T> Spanned for source_map::Spanned<T> {
 macro_rules! span_with_attrs_lo_hi {
     ($this:ident, $lo:expr, $hi:expr) => {{
         let attrs = outer_attributes(&$this.attrs);
-        if attrs.is_empty() {
-            mk_sp($lo, $hi)
+        if let Some(attr) = attrs.first() {
+            mk_sp(attr.span.lo(), $hi)
         } else {
-            mk_sp(attrs[0].span.lo(), $hi)
+            mk_sp($lo, $hi)
         }
     }};
 }
@@ -68,10 +68,10 @@ impl Spanned for ast::Stmt {
                 mk_sp(expr.span().lo(), self.span.hi())
             }
             ast::StmtKind::MacCall(ref mac_stmt) => {
-                if mac_stmt.attrs.is_empty() {
-                    self.span
+                if let Some(attr) = mac_stmt.attrs.first() {
+                    mk_sp(attr.span.lo(), self.span.hi())
                 } else {
-                    mk_sp(mac_stmt.attrs[0].span.lo(), self.span.hi())
+                    self.span
                 }
             }
             ast::StmtKind::Empty => self.span,
@@ -93,10 +93,10 @@ impl Spanned for ast::Ty {
 
 impl Spanned for ast::Arm {
     fn span(&self) -> Span {
-        let lo = if self.attrs.is_empty() {
-            self.pat.span.lo()
+        let lo = if let Some(attr) = self.attrs.first() {
+            attr.span.lo()
         } else {
-            self.attrs[0].span.lo()
+            self.pat.span.lo()
         };
         let hi = if let Some(body) = &self.body {
             body.span.hi()
@@ -119,15 +119,15 @@ impl Spanned for ast::Param {
 
 impl Spanned for ast::GenericParam {
     fn span(&self) -> Span {
-        let lo = match self.kind {
-            _ if !self.attrs.is_empty() => self.attrs[0].span.lo(),
-            ast::GenericParamKind::Const { kw_span, .. } => kw_span.lo(),
+        let lo = match (&self.kind, self.attrs.first()) {
+            (_, Some(attr)) => attr.span.lo(),
+            (ast::GenericParamKind::Const { kw_span, .. }, _) => kw_span.lo(),
             _ => self.ident.span.lo(),
         };
-        let hi = if self.bounds.is_empty() {
-            self.ident.span.hi()
+        let hi = if let Some(bound) = self.bounds.last() {
+            bound.span().hi()
         } else {
-            self.bounds.last().unwrap().span().hi()
+            self.ident.span.hi()
         };
         let ty_hi = if let ast::GenericParamKind::Type {
             default: Some(ref ty),
