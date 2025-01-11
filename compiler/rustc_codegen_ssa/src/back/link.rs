@@ -235,11 +235,7 @@ pub fn each_linked_rlib(
     f: &mut dyn FnMut(CrateNum, &Path),
 ) -> Result<(), errors::LinkRlibError> {
     let fmts = if let Some(crate_type) = crate_type {
-        let Some(fmts) = info.dependency_formats.get(&crate_type) else {
-            return Err(errors::LinkRlibError::MissingFormat);
-        };
-
-        fmts
+        info.dependency_formats.get(&crate_type).ok_or(errors::LinkRlibError::MissingFormat)?
     } else {
         for combination in info.dependency_formats.iter().combinations(2) {
             let (ty1, list1) = &combination[0];
@@ -253,28 +249,25 @@ pub fn each_linked_rlib(
                 });
             }
         }
-        if info.dependency_formats.is_empty() {
-            return Err(errors::LinkRlibError::MissingFormat);
-        }
-        info.dependency_formats.first().unwrap().1
+        info.dependency_formats.first().ok_or(errors::LinkRlibError::MissingFormat)?.1
     };
 
     let used_dep_crates = info.used_crates.iter();
     for &cnum in used_dep_crates {
-        match fmts.get(cnum) {
-            Some(&Linkage::NotLinked | &Linkage::Dynamic | &Linkage::IncludedFromDylib) => continue,
-            Some(_) => {}
-            None => return Err(errors::LinkRlibError::MissingFormat),
+        let fmt = fmts.get(cnum).ok_or(errors::LinkRlibError::MissingFormat)?;
+        if matches!(fmt, Linkage::NotLinked | Linkage::Dynamic | Linkage::IncludedFromDylib) {
+            continue;
         }
         let crate_name = info.crate_name[&cnum];
         let used_crate_source = &info.used_crate_source[&cnum];
-        if let Some((path, _)) = &used_crate_source.rlib {
-            f(cnum, path);
-        } else if used_crate_source.rmeta.is_some() {
-            return Err(errors::LinkRlibError::OnlyRmetaFound { crate_name });
-        } else {
-            return Err(errors::LinkRlibError::NotFound { crate_name });
-        }
+        let Some((path, _)) = &used_crate_source.rlib else {
+            return Err(if used_crate_source.rmeta.is_some() {
+                errors::LinkRlibError::OnlyRmetaFound { crate_name }
+            } else {
+                errors::LinkRlibError::NotFound { crate_name }
+            });
+        };
+        f(cnum, path);
     }
     Ok(())
 }
