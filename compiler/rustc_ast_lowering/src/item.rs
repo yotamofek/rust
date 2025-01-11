@@ -562,11 +562,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 }
 
                 // Condition should match `build_reduced_graph_for_use_tree`.
-                let path = if trees.is_empty()
-                    && !(prefix.segments.is_empty()
-                        || prefix.segments.len() == 1
-                            && prefix.segments[0].ident.name == kw::PathRoot)
-                {
+                let empty_for_self = |prefix: &[PathSegment]| {
+                    matches!(
+                        prefix,
+                        [] | [PathSegment { ident: Ident { name: kw::PathRoot, .. }, .. }]
+                    )
+                };
+                let path = if trees.is_empty() && !empty_for_self(&prefix.segments) {
                     // For empty lists we need to lower the prefix so it is checked for things
                     // like stability later.
                     let res = self.lower_import_res(id, span);

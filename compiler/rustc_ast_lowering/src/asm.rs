@@ -269,20 +269,21 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
                         }
                         let valid_modifiers = class.valid_modifiers(asm_arch.unwrap());
                         if !valid_modifiers.contains(&modifier) {
-                            let sub = if !valid_modifiers.is_empty() {
-                                let mut mods = format!("`{}`", valid_modifiers[0]);
-                                for m in &valid_modifiers[1..] {
-                                    let _ = write!(mods, ", `{m}`");
-                                }
-                                InvalidAsmTemplateModifierRegClassSub::SupportModifier {
-                                    class_name: class.name(),
-                                    modifiers: mods,
-                                }
-                            } else {
-                                InvalidAsmTemplateModifierRegClassSub::DoesNotSupportModifier {
-                                    class_name: class.name(),
-                                }
-                            };
+                            let sub =
+                                if let [first_modifier, valid_modifiers @ ..] = valid_modifiers {
+                                    let mut mods = format!("`{first_modifier}`");
+                                    for m in valid_modifiers {
+                                        let _ = write!(mods, ", `{m}`");
+                                    }
+                                    InvalidAsmTemplateModifierRegClassSub::SupportModifier {
+                                        class_name: class.name(),
+                                        modifiers: mods,
+                                    }
+                                } else {
+                                    InvalidAsmTemplateModifierRegClassSub::DoesNotSupportModifier {
+                                        class_name: class.name(),
+                                    }
+                                };
                             self.dcx().emit_err(InvalidAsmTemplateModifierRegClass {
                                 placeholder_span,
                                 op_span: op_sp,
