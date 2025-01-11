@@ -151,12 +151,8 @@ impl<'tcx> FunctionCx<'_, '_, 'tcx> {
         };
 
         // Return i128 using a return area pointer on Windows and s390x.
-        let adjust_ret_param =
-            if self.tcx.sess.target.is_like_windows || self.tcx.sess.target.arch == "s390x" {
-                returns.len() == 1 && returns[0].value_type == types::I128
-            } else {
-                false
-            };
+        let adjust_ret_param = matches!(returns[..], [AbiParam { value_type: types::I128, .. }])
+            && (self.tcx.sess.target.is_like_windows || self.tcx.sess.target.arch == "s390x");
 
         if adjust_ret_param {
             let mut params = params;
