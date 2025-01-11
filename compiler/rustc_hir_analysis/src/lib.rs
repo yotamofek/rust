@@ -64,6 +64,7 @@ This API is completely unstable and subject to change.
 #![feature(assert_matches)]
 #![feature(coroutines)]
 #![feature(if_let_guard)]
+#![feature(iter_collect_into)]
 #![feature(iter_from_coroutine)]
 #![feature(iter_intersperse)]
 #![feature(let_chains)]

@@ -1424,37 +1424,38 @@ pub(super) fn check_transparent<'tcx>(tcx: TyCtxt<'tcx>, adt: ty::AdtDef<'tcx>) 
         return;
     }
     let mut prev_non_exhaustive_1zst = false;
-    for (span, _trivial, non_exhaustive_1zst) in field_infos {
-        if let Some((descr, def_id, args, non_exhaustive)) = non_exhaustive_1zst {
-            // If there are any non-trivial fields, then there can be no non-exhaustive 1-zsts.
-            // Otherwise, it's only an issue if there's >1 non-exhaustive 1-zst.
-            if non_trivial_count > 0 || prev_non_exhaustive_1zst {
-                tcx.node_span_lint(
-                    REPR_TRANSPARENT_EXTERNAL_PRIVATE_FIELDS,
-                    tcx.local_def_id_to_hir_id(adt.did().expect_local()),
-                    span,
-                    |lint| {
-                        lint.primary_message(
-                            "zero-sized fields in `repr(transparent)` cannot \
+    for (span, (descr, def_id, args, non_exhaustive)) in field_infos
+        .filter_map(|(span, _, non_exhaustive_1zst)| non_exhaustive_1zst.map(|zst| (span, zst)))
+    {
+        // If there are any non-trivial fields, then there can be no non-exhaustive 1-zsts.
+        // Otherwise, it's only an issue if there's >1 non-exhaustive 1-zst.
+        if non_trivial_count == 0 && !prev_non_exhaustive_1zst {
+            prev_non_exhaustive_1zst = true;
+            continue;
+        }
+
+        tcx.node_span_lint(
+            REPR_TRANSPARENT_EXTERNAL_PRIVATE_FIELDS,
+            tcx.local_def_id_to_hir_id(adt.did().expect_local()),
+            span,
+            |lint| {
+                lint.primary_message(
+                    "zero-sized fields in `repr(transparent)` cannot \
                              contain external non-exhaustive types",
-                        );
-                        let note = if non_exhaustive {
-                            "is marked with `#[non_exhaustive]`"
-                        } else {
-                            "contains private fields"
-                        };
-                        let field_ty = tcx.def_path_str_with_args(def_id, args);
-                        lint.note(format!(
-                            "this {descr} contains `{field_ty}`, which {note}, \
+                );
+                let note = if non_exhaustive {
+                    "is marked with `#[non_exhaustive]`"
+                } else {
+                    "contains private fields"
+                };
+                let field_ty = tcx.def_path_str_with_args(def_id, args);
+                lint.note(format!(
+                    "this {descr} contains `{field_ty}`, which {note}, \
                                 and makes it not a breaking change to become \
                                 non-zero-sized in the future."
-                        ));
-                    },
-                )
-            } else {
-                prev_non_exhaustive_1zst = true;
-            }
-        }
+                ));
+            },
+        )
     }
 }
 
@@ -1667,14 +1668,18 @@ fn check_type_alias_type_params_are_used<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalD
     });
 
     let mut params_used = DenseBitSet::new_empty(generics.own_params.len());
-    for leaf in ty.walk() {
-        if let GenericArgKind::Type(leaf_ty) = leaf.unpack()
-            && let ty::Param(param) = leaf_ty.kind()
-        {
-            debug!("found use of ty param {:?}", param);
-            params_used.insert(param.index);
-        }
-    }
+    ty.walk()
+        .filter_map(|leaf| {
+            if let GenericArgKind::Type(leaf_ty) = leaf.unpack()
+                && let ty::Param(param) = leaf_ty.kind()
+            {
+                debug!("found use of ty param {:?}", param);
+                Some(param.index)
+            } else {
+                None
+            }
+        })
+        .collect_into(&mut params_used);
 
     for param in &generics.own_params {
         if !params_used.contains(param.index)
