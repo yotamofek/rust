@@ -522,7 +522,7 @@ impl<'a, 'ra, 'tcx> BuildReducedGraphVisitor<'a, 'ra, 'tcx> {
         debug!("build_reduced_graph_for_use_tree: prefix={:?}", prefix);
 
         let empty_for_self = |prefix: &[Segment]| {
-            prefix.is_empty() || prefix.len() == 1 && prefix[0].ident.name == kw::PathRoot
+            matches!(prefix, [] | [Segment { ident: Ident { name: kw::PathRoot, .. }, .. }])
         };
         match use_tree.kind {
             ast::UseTreeKind::Simple(rename) => {
