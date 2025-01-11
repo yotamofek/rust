@@ -1,6 +1,8 @@
 #![allow(rustc::diagnostic_outside_of_impl)]
 #![allow(rustc::untranslatable_diagnostic)]
 
+use std::fmt;
+
 use rustc_errors::codes::*;
 use rustc_errors::{Applicability, Diag, DiagCtxtHandle, struct_span_code_err};
 use rustc_hir as hir;
@@ -48,6 +50,10 @@ impl<'infcx, 'tcx> crate::MirBorrowckCtxt<'_, 'infcx, 'tcx> {
         .with_span_label(span, format!("use of borrowed {borrow_desc}"))
     }
 
+    fn print_via(msg: &str) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| if msg.is_empty() { Ok(()) } else { write!(f, " (via {msg})") })
+    }
+
     pub(crate) fn cannot_mutably_borrow_multiply(
         &self,
         new_loan_span: Span,
@@ -57,14 +63,13 @@ impl<'infcx, 'tcx> crate::MirBorrowckCtxt<'_, 'infcx, 'tcx> {
         old_opt_via: &str,
         old_load_end_span: Option<Span>,
     ) -> Diag<'infcx> {
-        let via = |msg: &str| if msg.is_empty() { "".to_string() } else { format!(" (via {msg})") };
         let mut err = struct_span_code_err!(
             self.dcx(),
             new_loan_span,
             E0499,
             "cannot borrow {}{} as mutable more than once at a time",
             desc,
-            via(opt_via),
+            Self::print_via(opt_via),
         );
         if old_loan_span == new_loan_span {
             // Both borrows are happening in the same place
@@ -74,7 +79,7 @@ impl<'infcx, 'tcx> crate::MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                 format!(
                     "{}{} was mutably borrowed here in the previous iteration of the loop{}",
                     desc,
-                    via(opt_via),
+                    Self::print_via(opt_via),
                     opt_via,
                 ),
             );
@@ -84,11 +89,11 @@ impl<'infcx, 'tcx> crate::MirBorrowckCtxt<'_, 'infcx, 'tcx> {
         } else {
             err.span_label(
                 old_loan_span,
-                format!("first mutable borrow occurs here{}", via(old_opt_via)),
+                format!("first mutable borrow occurs here{}", Self::print_via(old_opt_via)),
             );
             err.span_label(
                 new_loan_span,
-                format!("second mutable borrow occurs here{}", via(opt_via)),
+                format!("second mutable borrow occurs here{}", Self::print_via(opt_via)),
             );
             if let Some(old_load_end_span) = old_load_end_span {
                 err.span_label(old_load_end_span, "first borrow ends here");
@@ -201,18 +206,17 @@ impl<'infcx, 'tcx> crate::MirBorrowckCtxt<'_, 'infcx, 'tcx> {
         msg_old: &str,
         old_load_end_span: Option<Span>,
     ) -> Diag<'infcx> {
-        let via = |msg: &str| if msg.is_empty() { "".to_string() } else { format!(" (via {msg})") };
         let mut err = struct_span_code_err!(
             self.dcx(),
             span,
             E0502,
             "cannot borrow {}{} as {} because {} is also borrowed as {}{}",
             desc_new,
-            via(msg_new),
+            Self::print_via(msg_new),
             kind_new,
             noun_old,
             kind_old,
-            via(msg_old),
+            Self::print_via(msg_old),
         );
 
         if msg_new.is_empty() {
@@ -227,7 +231,10 @@ impl<'infcx, 'tcx> crate::MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                     "{kind_new} borrow of {msg_new} -- which overlaps with {msg_old} -- occurs here",
                 ),
             );
-            err.span_label(old_span, format!("{} borrow occurs here{}", kind_old, via(msg_old)));
+            err.span_label(
+                old_span,
+                format!("{} borrow occurs here{}", kind_old, Self::print_via(msg_old)),
+            );
         }
 
         if let Some(old_load_end_span) = old_load_end_span {
