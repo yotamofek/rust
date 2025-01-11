@@ -99,7 +99,7 @@ pub struct Path {
 impl PartialEq<Symbol> for Path {
     #[inline]
     fn eq(&self, symbol: &Symbol) -> bool {
-        self.segments.len() == 1 && { self.segments[0].ident.name == *symbol }
+        matches!(self.segments[..], [PathSegment { ident: Ident { name, .. }, .. }] if name == *symbol)
     }
 }
 
@@ -120,13 +120,13 @@ impl Path {
     }
 
     pub fn is_global(&self) -> bool {
-        !self.segments.is_empty() && self.segments[0].ident.name == kw::PathRoot
+        self.segments.first().is_some_and(|segment| segment.ident.name == kw::PathRoot)
     }
 
     /// If this path is a single identifier with no arguments, does not ensure
     /// that the path resolves to a const param, the caller should check this.
     pub fn is_potential_trivial_const_arg(&self) -> bool {
-        self.segments.len() == 1 && self.segments[0].args.is_none()
+        matches!(self.segments[..], [PathSegment { args: None, .. }])
     }
 }
 

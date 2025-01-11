@@ -302,7 +302,7 @@ impl AttrItem {
 impl MetaItem {
     /// For a single-segment meta item, returns its name; otherwise, returns `None`.
     pub fn ident(&self) -> Option<Ident> {
-        if self.path.segments.len() == 1 { Some(self.path.segments[0].ident) } else { None }
+        if let [PathSegment { ident, .. }] = self.path.segments[..] { Some(ident) } else { None }
     }
 
     pub fn name_or_empty(&self) -> Symbol {
@@ -534,13 +534,14 @@ impl MetaItemInner {
     pub fn singleton_lit_list(&self) -> Option<(Symbol, &MetaItemLit)> {
         self.meta_item().and_then(|meta_item| {
             meta_item.meta_item_list().and_then(|meta_item_list| {
-                if meta_item_list.len() == 1
-                    && let Some(ident) = meta_item.ident()
-                    && let Some(lit) = meta_item_list[0].lit()
+                if let Some(ident) = meta_item.ident()
+                    && let [item] = meta_item_list
+                    && let Some(lit) = item.lit()
                 {
-                    return Some((ident.name, lit));
+                    Some((ident.name, lit))
+                } else {
+                    None
                 }
-                None
             })
         })
     }
