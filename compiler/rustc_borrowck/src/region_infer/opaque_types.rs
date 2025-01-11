@@ -353,20 +353,22 @@ fn check_opaque_type_parameter_valid<'tcx>(
     }
 
     for (_, indices) in seen_params {
-        if indices.len() > 1 {
-            let descr = opaque_generics.param_at(indices[0], tcx).kind.descr();
-            let spans: Vec<_> = indices
-                .into_iter()
-                .map(|i| tcx.def_span(opaque_generics.param_at(i, tcx).def_id))
-                .collect();
-            #[allow(rustc::diagnostic_outside_of_impl)]
-            #[allow(rustc::untranslatable_diagnostic)]
-            return Err(infcx
-                .dcx()
-                .struct_span_err(span, "non-defining opaque type use in defining scope")
-                .with_span_note(spans, format!("{descr} used multiple times"))
-                .emit());
-        }
+        let [first_index, _, ..] = indices[..] else {
+            continue;
+        };
+
+        let descr = opaque_generics.param_at(first_index, tcx).kind.descr();
+        let spans: Vec<_> = indices
+            .into_iter()
+            .map(|i| tcx.def_span(opaque_generics.param_at(i, tcx).def_id))
+            .collect();
+        #[allow(rustc::diagnostic_outside_of_impl)]
+        #[allow(rustc::untranslatable_diagnostic)]
+        return Err(infcx
+            .dcx()
+            .struct_span_err(span, "non-defining opaque type use in defining scope")
+            .with_span_note(spans, format!("{descr} used multiple times"))
+            .emit());
     }
 
     Ok(())

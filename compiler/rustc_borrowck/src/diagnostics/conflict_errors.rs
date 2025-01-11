@@ -2648,13 +2648,14 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                     && let Res::Local(hir_id) = seg.res
                     && Some(hir_id) == self.closure_local_id
                 {
-                    let (span, arg_str) = if args.len() > 0 {
-                        (args[0].span.shrink_to_lo(), "self, ".to_string())
-                    } else {
-                        let span = e.span.trim_start(seg.ident.span).unwrap_or(e.span);
-                        (span, "(self)".to_string())
-                    };
-                    self.closure_call_changes.push((span, arg_str));
+                    let change = args
+                        .get(0)
+                        .map(|arg| (arg.span.shrink_to_lo(), "self, ".to_string()))
+                        .unwrap_or_else(|| {
+                            let span = e.span.trim_start(seg.ident.span).unwrap_or(e.span);
+                            (span, "(self)".to_string())
+                        });
+                    self.closure_call_changes.push(change);
                 }
                 hir::intravisit::walk_stmt(self, s);
             }
