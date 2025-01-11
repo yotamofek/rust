@@ -346,6 +346,14 @@ impl<T: Idx> fmt::Debug for DenseBitSet<T> {
     }
 }
 
+impl<T: Idx> Extend<T> for DenseBitSet<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for item in iter {
+            self.insert(item);
+        }
+    }
+}
+
 impl<T: Idx> ToString for DenseBitSet<T> {
     fn to_string(&self) -> String {
         let mut result = String::new();
