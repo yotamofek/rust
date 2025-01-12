@@ -205,7 +205,7 @@ pub type UsePath<'hir> = Path<'hir, SmallVec<[Res; 3]>>;
 
 impl Path<'_> {
     pub fn is_global(&self) -> bool {
-        !self.segments.is_empty() && self.segments[0].ident.name == kw::PathRoot
+        matches!(self.segments, [PathSegment { ident: Ident { name: kw::PathRoot, .. }, .. }, ..])
     }
 }
 
@@ -244,12 +244,10 @@ impl<'hir> PathSegment<'hir> {
     }
 
     pub fn args(&self) -> &GenericArgs<'hir> {
-        if let Some(ref args) = self.args {
-            args
-        } else {
+        self.args.unwrap_or({
             const DUMMY: &GenericArgs<'_> = &GenericArgs::none();
             DUMMY
-        }
+        })
     }
 }
 
@@ -1239,13 +1237,15 @@ impl fmt::Debug for OwnerNodes<'_> {
             .field("node", &self.nodes[ItemLocalId::ZERO])
             .field(
                 "parents",
-                &self
-                    .nodes
-                    .iter_enumerated()
-                    .map(|(id, parented_node)| {
-                        debug_fn(move |f| write!(f, "({id:?}, {:?})", parented_node.parent))
-                    })
-                    .collect::<Vec<_>>(),
+                &fmt::from_fn(|f| {
+                    f.debug_list()
+                        .entries(self.nodes.iter_enumerated().map(
+                            |(id, ParentedNode { parent, .. })| {
+                                fmt::from_fn(move |f| write!(f, "({id:?}, {parent:?})"))
+                            },
+                        ))
+                        .finish()
+                }),
             )
             .field("bodies", &self.bodies)
             .field("opt_hash_including_bodies", &self.opt_hash_including_bodies)
@@ -1504,13 +1504,13 @@ pub struct DotDotPos(u32);
 impl DotDotPos {
     /// Panics if n >= u32::MAX.
     pub fn new(n: Option<usize>) -> Self {
-        match n {
-            Some(n) => {
+        Self(
+            n.map(|n| {
                 assert!(n < u32::MAX as usize);
-                Self(n as u32)
-            }
-            None => Self(u32::MAX),
-        }
+                n as u32
+            })
+            .unwrap_or(u32::MAX),
+        )
     }
 
     pub fn as_opt_usize(&self) -> Option<usize> {
@@ -1930,7 +1930,7 @@ impl fmt::Display for ConstContext {
 }
 
 // NOTE: `IntoDiagArg` impl for `ConstContext` lives in `rustc_errors`
-// due to a cyclical dependency between hir that crate.
+// due to a cyclical dependency between hir and that crate.
 
 /// A literal.
 pub type Lit = Spanned<LitKind>;
@@ -3439,10 +3439,10 @@ impl<'hir> FnRetTy<'hir> {
     }
 
     pub fn is_suggestable_infer_ty(&self) -> Option<&'hir Ty<'hir>> {
-        if let Self::Return(ty) = self {
-            if ty.is_suggestable_infer_ty() {
-                return Some(*ty);
-            }
+        if let Self::Return(ty) = self
+            && ty.is_suggestable_infer_ty()
+        {
+            return Some(*ty);
         }
         None
     }
@@ -3811,11 +3811,11 @@ pub struct FnHeader {
 
 impl FnHeader {
     pub fn is_async(&self) -> bool {
-        matches!(&self.asyncness, IsAsync::Async(_))
+        matches!(self.asyncness, IsAsync::Async(_))
     }
 
     pub fn is_const(&self) -> bool {
-        matches!(&self.constness, Constness::Const)
+        matches!(self.constness, Constness::Const)
     }
 
     pub fn is_unsafe(&self) -> bool {
@@ -3911,16 +3911,16 @@ pub struct Impl<'hir> {
 
 impl ItemKind<'_> {
     pub fn generics(&self) -> Option<&Generics<'_>> {
-        Some(match *self {
-            ItemKind::Fn { ref generics, .. }
-            | ItemKind::TyAlias(_, ref generics)
-            | ItemKind::Const(_, ref generics, _)
-            | ItemKind::Enum(_, ref generics)
-            | ItemKind::Struct(_, ref generics)
-            | ItemKind::Union(_, ref generics)
-            | ItemKind::Trait(_, _, ref generics, _, _)
-            | ItemKind::TraitAlias(ref generics, _)
-            | ItemKind::Impl(Impl { ref generics, .. }) => generics,
+        Some(match self {
+            ItemKind::Fn { generics, .. }
+            | ItemKind::TyAlias(_, generics)
+            | ItemKind::Const(_, generics, _)
+            | ItemKind::Enum(_, generics)
+            | ItemKind::Struct(_, generics)
+            | ItemKind::Union(_, generics)
+            | ItemKind::Trait(_, _, generics, _, _)
+            | ItemKind::TraitAlias(generics, _)
+            | ItemKind::Impl(Impl { generics, .. }) => generics,
             _ => return None,
         })
     }
@@ -4317,16 +4317,14 @@ impl<'hir> Node<'hir> {
 
     /// Get a `hir::Impl` if the node is an impl block for the given `trait_def_id`.
     pub fn impl_block_of_trait(self, trait_def_id: DefId) -> Option<&'hir Impl<'hir>> {
-        match self {
-            Node::Item(Item { kind: ItemKind::Impl(impl_block), .. })
-                if impl_block
-                    .of_trait
-                    .and_then(|trait_ref| trait_ref.trait_def_id())
-                    .is_some_and(|trait_id| trait_id == trait_def_id) =>
-            {
-                Some(impl_block)
-            }
-            _ => None,
+        if let Node::Item(Item { kind: ItemKind::Impl(impl_block), .. }) = self
+            && let Some(trait_ref) = impl_block.of_trait
+            && let Some(trait_id) = trait_ref.trait_def_id()
+            && trait_id == trait_def_id
+        {
+            Some(impl_block)
+        } else {
+            None
         }
     }
 
@@ -4345,23 +4343,22 @@ impl<'hir> Node<'hir> {
     /// Get the type for constants, assoc types, type aliases and statics.
     pub fn ty(self) -> Option<&'hir Ty<'hir>> {
         match self {
-            Node::Item(it) => match it.kind {
-                ItemKind::TyAlias(ty, _)
-                | ItemKind::Static(ty, _, _)
-                | ItemKind::Const(ty, _, _) => Some(ty),
-                ItemKind::Impl(impl_item) => Some(&impl_item.self_ty),
-                _ => None,
-            },
-            Node::TraitItem(it) => match it.kind {
-                TraitItemKind::Const(ty, _) => Some(ty),
-                TraitItemKind::Type(_, ty) => ty,
-                _ => None,
-            },
-            Node::ImplItem(it) => match it.kind {
-                ImplItemKind::Const(ty, _) => Some(ty),
-                ImplItemKind::Type(ty) => Some(ty),
-                _ => None,
-            },
+            Node::Item(Item {
+                kind:
+                    ItemKind::TyAlias(ty, _)
+                    | ItemKind::Static(ty, _, _)
+                    | ItemKind::Const(ty, _, _)
+                    | ItemKind::Impl(Impl { self_ty: ty, .. }),
+                ..
+            })
+            | Node::TraitItem(TraitItem {
+                kind: TraitItemKind::Const(ty, _) | TraitItemKind::Type(_, Some(ty)),
+                ..
+            })
+            | Node::ImplItem(ImplItem {
+                kind: ImplItemKind::Const(ty, _) | ImplItemKind::Type(ty),
+                ..
+            }) => Some(ty),
             _ => None,
         }
     }
@@ -4377,29 +4374,25 @@ impl<'hir> Node<'hir> {
     pub fn associated_body(&self) -> Option<(LocalDefId, BodyId)> {
         match self {
             Node::Item(Item {
-                owner_id,
+                owner_id: OwnerId { def_id },
                 kind:
                     ItemKind::Const(_, _, body) | ItemKind::Static(.., body) | ItemKind::Fn { body, .. },
                 ..
             })
             | Node::TraitItem(TraitItem {
-                owner_id,
+                owner_id: OwnerId { def_id },
                 kind:
                     TraitItemKind::Const(_, Some(body)) | TraitItemKind::Fn(_, TraitFn::Provided(body)),
                 ..
             })
             | Node::ImplItem(ImplItem {
-                owner_id,
+                owner_id: OwnerId { def_id },
                 kind: ImplItemKind::Const(_, body) | ImplItemKind::Fn(_, body),
                 ..
-            }) => Some((owner_id.def_id, *body)),
-
-            Node::Expr(Expr { kind: ExprKind::Closure(Closure { def_id, body, .. }), .. }) => {
-                Some((*def_id, *body))
-            }
-
-            Node::AnonConst(constant) => Some((constant.def_id, constant.body)),
-            Node::ConstBlock(constant) => Some((constant.def_id, constant.body)),
+            })
+            | Node::Expr(Expr { kind: ExprKind::Closure(Closure { def_id, body, .. }), .. })
+            | Node::AnonConst(AnonConst { def_id, body, .. })
+            | Node::ConstBlock(ConstBlock { def_id, body, .. }) => Some((*def_id, *body)),
 
             _ => None,
         }
@@ -4422,39 +4415,29 @@ impl<'hir> Node<'hir> {
     }
 
     pub fn as_owner(self) -> Option<OwnerNode<'hir>> {
-        match self {
-            Node::Item(i) => Some(OwnerNode::Item(i)),
-            Node::ForeignItem(i) => Some(OwnerNode::ForeignItem(i)),
-            Node::TraitItem(i) => Some(OwnerNode::TraitItem(i)),
-            Node::ImplItem(i) => Some(OwnerNode::ImplItem(i)),
-            Node::Crate(i) => Some(OwnerNode::Crate(i)),
-            Node::Synthetic => Some(OwnerNode::Synthetic),
-            _ => None,
-        }
+        Some(match self {
+            Node::Item(i) => OwnerNode::Item(i),
+            Node::ForeignItem(i) => OwnerNode::ForeignItem(i),
+            Node::TraitItem(i) => OwnerNode::TraitItem(i),
+            Node::ImplItem(i) => OwnerNode::ImplItem(i),
+            Node::Crate(i) => OwnerNode::Crate(i),
+            Node::Synthetic => OwnerNode::Synthetic,
+            _ => return None,
+        })
     }
 
     pub fn fn_kind(self) -> Option<FnKind<'hir>> {
-        match self {
-            Node::Item(i) => match i.kind {
-                ItemKind::Fn { sig, generics, .. } => {
-                    Some(FnKind::ItemFn(i.ident, generics, sig.header))
-                }
-                _ => None,
-            },
-            Node::TraitItem(ti) => match ti.kind {
-                TraitItemKind::Fn(ref sig, _) => Some(FnKind::Method(ti.ident, sig)),
-                _ => None,
-            },
-            Node::ImplItem(ii) => match ii.kind {
-                ImplItemKind::Fn(ref sig, _) => Some(FnKind::Method(ii.ident, sig)),
-                _ => None,
-            },
-            Node::Expr(e) => match e.kind {
-                ExprKind::Closure { .. } => Some(FnKind::Closure),
-                _ => None,
-            },
-            _ => None,
-        }
+        Some(match self {
+            Node::Item(i @ Item { kind: ItemKind::Fn { sig, generics, .. }, .. }) => {
+                FnKind::ItemFn(i.ident, generics, sig.header)
+            }
+            Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(sig, _), ident, .. })
+            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(sig, _), ident, .. }) => {
+                FnKind::Method(*ident, sig)
+            }
+            Node::Expr(Expr { kind: ExprKind::Closure { .. }, .. }) => FnKind::Closure,
+            _ => return None,
+        })
     }
 
     expect_methods_self! {
@@ -4526,14 +4509,4 @@ mod size_asserts {
     static_assert_size!(Ty<'_>, 48);
     static_assert_size!(TyKind<'_>, 32);
     // tidy-alphabetical-end
-}
-
-fn debug_fn(f: impl Fn(&mut fmt::Formatter<'_>) -> fmt::Result) -> impl fmt::Debug {
-    struct DebugFn<F>(F);
-    impl<F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result> fmt::Debug for DebugFn<F> {
-        fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-            (self.0)(fmt)
-        }
-    }
-    DebugFn(f)
 }
