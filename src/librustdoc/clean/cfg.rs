@@ -6,6 +6,7 @@
 use std::fmt::{self, Write};
 use std::{mem, ops};
 
+use itertools::Itertools;
 use rustc_ast::{LitKind, MetaItem, MetaItemInner, MetaItemKind, MetaItemLit};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_feature::Features;
@@ -396,11 +397,20 @@ impl fmt::Display for Display<'_> {
                 Cfg::Any(ref sub_cfgs) => {
                     let separator =
                         if sub_cfgs.iter().all(Cfg::is_simple) { " nor " } else { ", nor " };
-                    for (i, sub_cfg) in sub_cfgs.iter().enumerate() {
-                        fmt.write_str(if i == 0 { "neither " } else { separator })?;
-                        write_with_opt_paren(fmt, !sub_cfg.is_all(), Display(sub_cfg, self.1))?;
-                    }
-                    Ok(())
+                    fmt.write_str("neither ")?;
+                    sub_cfgs
+                        .iter()
+                        .map(|sub_cfg| {
+                            fmt::from_fn(|fmt| {
+                                write_with_opt_paren(
+                                    fmt,
+                                    !sub_cfg.is_all(),
+                                    Display(sub_cfg, self.1),
+                                )
+                            })
+                        })
+                        .format(separator)
+                        .fmt(fmt)
                 }
                 ref simple @ Cfg::Cfg(..) => write!(fmt, "non-{}", Display(simple, self.1)),
                 ref c => write!(fmt, "not ({})", Display(c, self.1)),
@@ -428,21 +438,27 @@ impl fmt::Display for Display<'_> {
                     }
                 };
 
-                for (i, sub_cfg) in sub_cfgs.iter().enumerate() {
-                    if i != 0 {
-                        fmt.write_str(separator)?;
-                    }
-                    if let (true, Cfg::Cfg(_, Some(feat))) = (short_longhand, sub_cfg) {
-                        if self.1.is_html() {
-                            write!(fmt, "<code>{feat}</code>")?;
-                        } else {
-                            write!(fmt, "`{feat}`")?;
-                        }
-                    } else {
-                        write_with_opt_paren(fmt, !sub_cfg.is_all(), Display(sub_cfg, self.1))?;
-                    }
-                }
-                Ok(())
+                sub_cfgs
+                    .iter()
+                    .map(|sub_cfg| {
+                        fmt::from_fn(move |fmt| {
+                            if let (true, Cfg::Cfg(_, Some(feat))) = (short_longhand, sub_cfg) {
+                                if self.1.is_html() {
+                                    write!(fmt, "<code>{feat}</code>")
+                                } else {
+                                    write!(fmt, "`{feat}`")
+                                }
+                            } else {
+                                write_with_opt_paren(
+                                    fmt,
+                                    !sub_cfg.is_all(),
+                                    Display(sub_cfg, self.1),
+                                )
+                            }
+                        })
+                    })
+                    .format(separator)
+                    .fmt(fmt)
             }
 
             Cfg::All(ref sub_cfgs) => {
@@ -465,21 +481,27 @@ impl fmt::Display for Display<'_> {
                     }
                 };
 
-                for (i, sub_cfg) in sub_cfgs.iter().enumerate() {
-                    if i != 0 {
-                        fmt.write_str(" and ")?;
-                    }
-                    if let (true, Cfg::Cfg(_, Some(feat))) = (short_longhand, sub_cfg) {
-                        if self.1.is_html() {
-                            write!(fmt, "<code>{feat}</code>")?;
-                        } else {
-                            write!(fmt, "`{feat}`")?;
-                        }
-                    } else {
-                        write_with_opt_paren(fmt, !sub_cfg.is_simple(), Display(sub_cfg, self.1))?;
-                    }
-                }
-                Ok(())
+                sub_cfgs
+                    .iter()
+                    .map(|sub_cfg| {
+                        fmt::from_fn(move |fmt| {
+                            if let (true, Cfg::Cfg(_, Some(feat))) = (short_longhand, sub_cfg) {
+                                if self.1.is_html() {
+                                    write!(fmt, "<code>{feat}</code>")
+                                } else {
+                                    write!(fmt, "`{feat}`")
+                                }
+                            } else {
+                                write_with_opt_paren(
+                                    fmt,
+                                    !sub_cfg.is_simple(),
+                                    Display(sub_cfg, self.1),
+                                )
+                            }
+                        })
+                    })
+                    .format(" and ")
+                    .fmt(fmt)
             }
 
             Cfg::True => fmt.write_str("everywhere"),
