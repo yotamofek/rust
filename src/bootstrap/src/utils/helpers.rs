@@ -68,14 +68,12 @@ pub fn submodule_path_of(builder: &Builder<'_>, path: &str) -> Option<String> {
 }
 
 fn is_aix_shared_archive(path: &Path) -> bool {
-    let file = match fs::File::open(path) {
-        Ok(file) => file,
-        Err(_) => return false,
+    let Ok(file) = fs::File::open(path) else {
+        return false;
     };
     let reader = object::ReadCache::new(file);
-    let archive = match ArchiveFile::parse(&reader) {
-        Ok(result) => result,
-        Err(_) => return false,
+    let Ok(archive) = ArchiveFile::parse(&reader) else {
+        return false;
     };
 
     archive
@@ -99,10 +97,7 @@ pub fn libdir(target: TargetSelection) -> &'static str {
 /// Adds a list of lookup paths to `cmd`'s dynamic library lookup path.
 /// If the dylib_path_var is already set for this cmd, the old value will be overwritten!
 pub fn add_dylib_path(path: Vec<PathBuf>, cmd: &mut BootstrapCommand) {
-    let mut list = dylib_path();
-    for path in path {
-        list.insert(0, path);
-    }
+    let list = path.into_iter().rev().chain(dylib_path());
     cmd.env(dylib_path_var(), t!(env::join_paths(list)));
 }
 
@@ -156,7 +151,7 @@ pub fn move_file<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<(
 }
 
 pub fn forcing_clang_based_tests() -> bool {
-    if let Some(var) = env::var_os("RUSTBUILD_FORCE_CLANG_BASED_TESTS") {
+    env::var_os("RUSTBUILD_FORCE_CLANG_BASED_TESTS").is_some_and(|var| {
         match &var.to_string_lossy().to_lowercase()[..] {
             "1" | "yes" | "on" => true,
             "0" | "no" | "off" => false,
@@ -168,9 +163,7 @@ pub fn forcing_clang_based_tests() -> bool {
                 )
             }
         }
-    } else {
-        false
-    }
+    })
 }
 
 pub fn use_host_linker(target: TargetSelection) -> bool {
@@ -206,10 +199,7 @@ pub fn is_valid_test_suite_arg<'a, P: AsRef<Path>>(
     builder: &Builder<'_>,
 ) -> Option<&'a str> {
     let suite_path = suite_path.as_ref();
-    let path = match path.strip_prefix(".") {
-        Ok(p) => p,
-        Err(_) => path,
-    };
+    let path = path.strip_prefix(".").unwrap_or(path);
     if !path.starts_with(suite_path) {
         return None;
     }
@@ -227,20 +217,15 @@ pub fn is_valid_test_suite_arg<'a, P: AsRef<Path>>(
     // Therefore, we need to filter these out, as only the first --test-args
     // flag is respected, so providing an empty --test-args conflicts with
     // any following it.
-    match path.strip_prefix(suite_path).ok().and_then(|p| p.to_str()) {
-        Some(s) if !s.is_empty() => Some(s),
-        _ => None,
-    }
+    path.strip_prefix(suite_path).ok().and_then(|p| p.to_str()).filter(|s| !s.is_empty())
 }
 
 // FIXME: get rid of this function
 pub fn check_run(cmd: &mut BootstrapCommand, print_cmd_on_fail: bool) -> bool {
-    let status = match cmd.as_command_mut().status() {
-        Ok(status) => status,
-        Err(e) => {
-            println!("failed to execute command: {cmd:?}\nERROR: {e}");
-            return false;
-        }
+    let Ok(status) = cmd.as_command_mut().status().inspect_err(|e| {
+        println!("failed to execute command: {cmd:?}\nERROR: {e}");
+    }) else {
+        return false;
     };
     if !status.success() && print_cmd_on_fail {
         println!(
@@ -512,16 +497,15 @@ where
 pub fn check_cfg_arg(name: &str, values: Option<&[&str]>) -> String {
     // Creating a string of the values by concatenating each value:
     // ',values("tvos","watchos")' or '' (nothing) when there are no values.
-    let next = match values {
-        Some(values) => {
+    let next = values
+        .map(|values| {
             let mut tmp = values.iter().flat_map(|val| [",", "\"", val, "\""]).collect::<String>();
 
             tmp.insert_str(1, "values(");
             tmp.push(')');
             tmp
-        }
-        None => "".to_string(),
-    };
+        })
+        .unwrap_or_default();
     format!("--check-cfg=cfg({name}{next})")
 }
 
