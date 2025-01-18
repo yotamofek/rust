@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use std::cmp;
 
 use rustc_ast::expand::StrippedCfgItem;
 use rustc_ast::ptr::P;
@@ -3082,20 +3082,21 @@ impl<'tcx> visit::Visitor<'tcx> for UsePlacementFinder {
 }
 
 fn search_for_any_use_in_items(items: &[P<ast::Item>]) -> Option<Span> {
-    for item in items {
-        if let ItemKind::Use(..) = item.kind
-            && is_span_suitable_for_use_injection(item.span)
-        {
-            let mut lo = item.span.lo();
-            for attr in &item.attrs {
-                if attr.span.eq_ctxt(item.span) {
-                    lo = std::cmp::min(lo, attr.span.lo());
-                }
-            }
-            return Some(Span::new(lo, lo, item.span.ctxt(), item.span.parent()));
-        }
-    }
-    None
+    items
+        .iter()
+        .find(|item| {
+            matches!(item.kind, ItemKind::Use(..)) && is_span_suitable_for_use_injection(item.span)
+        })
+        .map(|item| {
+            let lo = item
+                .attrs
+                .iter()
+                .filter(|attr| attr.span.eq_ctxt(item.span))
+                .map(|attr| attr.span.lo())
+                .fold(item.span.lo(), cmp::min);
+
+            Span::new(lo, lo, item.span.ctxt(), item.span.parent())
+        })
 }
 
 fn is_span_suitable_for_use_injection(s: Span) -> bool {
