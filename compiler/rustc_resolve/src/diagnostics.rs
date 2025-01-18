@@ -1309,12 +1309,16 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     let is_extern_crate_that_also_appears_in_prelude =
                         name_binding.is_extern_crate() && lookup_ident.span.at_least_rust_2018();
 
-                    if !is_extern_crate_that_also_appears_in_prelude || alias_import {
+                    if (!is_extern_crate_that_also_appears_in_prelude || alias_import)
                         // add the module to the lookup
-                        if seen_modules.insert(module.def_id()) {
-                            if via_import { &mut worklist_via_import } else { &mut worklist }
-                                .push((module, path_segments, child_accessible, child_doc_visible));
-                        }
+                        && seen_modules.insert(module.def_id())
+                    {
+                        if via_import { &mut worklist_via_import } else { &mut worklist }.push((
+                            module,
+                            path_segments,
+                            child_accessible,
+                            child_doc_visible,
+                        ));
                     }
                 }
             })
