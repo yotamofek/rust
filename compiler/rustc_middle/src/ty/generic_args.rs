@@ -581,21 +581,21 @@ impl<'tcx> TypeFoldable<TyCtxt<'tcx>> for GenericArgsRef<'tcx> {
         // typically hit in 90--99.99% of cases. When folding doesn't change
         // the args, it's faster to reuse the existing args rather than
         // calling `mk_args`.
-        match self.len() {
-            1 => {
-                let param0 = self[0].try_fold_with(folder)?;
-                if param0 == self[0] { Ok(self) } else { Ok(folder.cx().mk_args(&[param0])) }
+        match self[..] {
+            [param0] => {
+                let folded0 = param0.try_fold_with(folder)?;
+                if folded0 == param0 { Ok(self) } else { Ok(folder.cx().mk_args(&[folded0])) }
             }
-            2 => {
-                let param0 = self[0].try_fold_with(folder)?;
-                let param1 = self[1].try_fold_with(folder)?;
-                if param0 == self[0] && param1 == self[1] {
+            [param0, param1] => {
+                let folded0 = param0.try_fold_with(folder)?;
+                let folded1 = param1.try_fold_with(folder)?;
+                if folded0 == param0 && folded1 == param1 {
                     Ok(self)
                 } else {
-                    Ok(folder.cx().mk_args(&[param0, param1]))
+                    Ok(folder.cx().mk_args(&[folded0, folded1]))
                 }
             }
-            0 => Ok(self),
+            [] => Ok(self),
             _ => ty::util::fold_list(self, folder, |tcx, v| tcx.mk_args(v)),
         }
     }
@@ -621,14 +621,14 @@ impl<'tcx> TypeFoldable<TyCtxt<'tcx>> for &'tcx ty::List<Ty<'tcx>> {
         // I've tried it with some private repositories and got
         // close to the same result, with 4 and 0 swapping places
         // sometimes.
-        match self.len() {
-            2 => {
-                let param0 = self[0].try_fold_with(folder)?;
-                let param1 = self[1].try_fold_with(folder)?;
-                if param0 == self[0] && param1 == self[1] {
+        match self[..] {
+            [param0, param1] => {
+                let folded0 = param0.try_fold_with(folder)?;
+                let folded1 = param1.try_fold_with(folder)?;
+                if folded0 == param0 && folded1 == param1 {
                     Ok(self)
                 } else {
-                    Ok(folder.cx().mk_type_list(&[param0, param1]))
+                    Ok(folder.cx().mk_type_list(&[folded0, folded1]))
                 }
             }
             _ => ty::util::fold_list(self, folder, |tcx, v| tcx.mk_type_list(v)),

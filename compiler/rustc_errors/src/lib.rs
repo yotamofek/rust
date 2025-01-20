@@ -14,7 +14,9 @@
 #![feature(associated_type_defaults)]
 #![feature(box_into_inner)]
 #![feature(box_patterns)]
+#![feature(debug_closure_helpers)]
 #![feature(error_reporter)]
+#![feature(exact_size_is_empty)]
 #![feature(extract_if)]
 #![feature(if_let_guard)]
 #![feature(let_chains)]
@@ -35,6 +37,7 @@ use std::backtrace::{Backtrace, BacktraceStatus};
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::error::Report;
+use std::fmt::Write as _;
 use std::hash::Hash;
 use std::io::Write;
 use std::num::NonZero;
@@ -994,9 +997,9 @@ impl<'a> DiagCtxtHandle<'a> {
             count => Cow::from(format!("aborting due to {count} previous errors")),
         };
 
-        match (errors.len(), warnings.len()) {
-            (0, 0) => return,
-            (0, _) => {
+        match (errors.is_empty(), warnings.is_empty()) {
+            (true, true) => return,
+            (true, _) => {
                 // Use `ForceWarning` rather than `Warning` to guarantee emission, e.g. with a
                 // configuration like `--cap-lints allow --force-warn bare_trait_objects`.
                 inner.emit_diagnostic(
@@ -1004,7 +1007,7 @@ impl<'a> DiagCtxtHandle<'a> {
                     None,
                 );
             }
-            (_, 0) => {
+            (_, true) => {
                 inner.emit_diagnostic(DiagInner::new(Error, errors), self.tainted_with_errors);
             }
             (_, _) => {
@@ -1029,28 +1032,32 @@ impl<'a> DiagCtxtHandle<'a> {
                     }
                 })
                 .collect::<Vec<_>>();
-            if !error_codes.is_empty() {
-                error_codes.sort();
-                if error_codes.len() > 1 {
-                    let limit = if error_codes.len() > 9 { 9 } else { error_codes.len() };
-                    let msg1 = format!(
-                        "Some errors have detailed explanations: {}{}",
-                        error_codes[..limit].join(", "),
-                        if error_codes.len() > 9 { "..." } else { "." }
-                    );
-                    let msg2 = format!(
-                        "For more information about an error, try `rustc --explain {}`.",
-                        &error_codes[0]
-                    );
-                    inner.emit_diagnostic(DiagInner::new(FailureNote, msg1), None);
-                    inner.emit_diagnostic(DiagInner::new(FailureNote, msg2), None);
-                } else {
+            error_codes.sort();
+            match &error_codes[..] {
+                [code] => {
                     let msg = format!(
-                        "For more information about this error, try `rustc --explain {}`.",
-                        &error_codes[0]
+                        "For more information about this error, try `rustc --explain {code}`.",
                     );
                     inner.emit_diagnostic(DiagInner::new(FailureNote, msg), None);
                 }
+                [first_code, error_codes @ ..] => {
+                    let error_codes = fmt::from_fn(|f| {
+                        f.write_str(first_code)?;
+                        let mut error_codes = error_codes.iter();
+                        for code in error_codes.by_ref().take(8) {
+                            write!(f, ", {code}")?;
+                        }
+                        if error_codes.is_empty() { f.write_char('.') } else { f.write_str("...") }
+                    });
+                    // let limit = error_codes.len().max(9);
+                    let msg1 = format!("Some errors have detailed explanations: {error_codes}");
+                    let msg2 = format!(
+                        "For more information about an error, try `rustc --explain {first_code}`.",
+                    );
+                    inner.emit_diagnostic(DiagInner::new(FailureNote, msg1), None);
+                    inner.emit_diagnostic(DiagInner::new(FailureNote, msg2), None);
+                }
+                _ => {}
             }
         }
     }
