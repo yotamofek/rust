@@ -1096,7 +1096,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     }
                 }
                 Scope::ExternPrelude => {
-                    suggestions.extend(this.extern_prelude.iter().filter_map(|(ident, _)| {
+                    suggestions.extend(this.extern_prelude.keys().filter_map(|ident| {
                         let res = Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id());
                         filter_fn(res).then_some(TypoSuggestion::typo_from_ident(*ident, res))
                     }));
@@ -1895,9 +1895,9 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
 
             match binding.kind {
                 NameBindingKind::Import { import, .. } => {
-                    for segment in import.module_path.iter().skip(1) {
-                        path.push(segment.ident.to_string());
-                    }
+                    path.extend(
+                        import.module_path.iter().skip(1).map(|segment| segment.ident.to_string()),
+                    );
                     sugg_paths.push((
                         path.iter()
                             .cloned()
@@ -1937,25 +1937,23 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             };
             err.subdiagnostic(note);
         }
-        // We prioritize shorter paths, non-core imports and direct imports over the alternatives.
-        sugg_paths.sort_by_key(|(p, reexport)| (p.len(), p[0] == "core", *reexport));
-        for (sugg, reexport) in sugg_paths {
-            if not_publicly_reexported {
-                break;
-            }
-            if sugg.len() <= 1 {
+        if !not_publicly_reexported {
+            // We prioritize shorter paths, non-core imports and direct imports over the alternatives.
+            sugg_paths.sort_by_key(|(p, reexport)| (p.len(), p[0] == "core", *reexport));
+
+            if let Some((sugg, reexport)) = sugg_paths.into_iter().find(|(sugg, _)| {
                 // A single path segment suggestion is wrong. This happens on circular imports.
                 // `tests/ui/imports/issue-55884-2.rs`
-                continue;
+                sugg.len() > 1
+            }) {
+                let path = sugg.join("::");
+                let sugg = if reexport {
+                    errors::ImportIdent::ThroughReExport { span: dedup_span, ident, path }
+                } else {
+                    errors::ImportIdent::Directly { span: dedup_span, ident, path }
+                };
+                err.subdiagnostic(sugg);
             }
-            let path = sugg.join("::");
-            let sugg = if reexport {
-                errors::ImportIdent::ThroughReExport { span: dedup_span, ident, path }
-            } else {
-                errors::ImportIdent::Directly { span: dedup_span, ident, path }
-            };
-            err.subdiagnostic(sugg);
-            break;
         }
 
         err.emit();
@@ -1972,11 +1970,11 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             .map(|ident| ident.name)
             .chain(
                 self.module_map
-                    .iter()
-                    .filter(|(_, module)| {
+                    .values()
+                    .filter(|module| {
                         current_module.is_ancestor_of(**module) && current_module != **module
                     })
-                    .flat_map(|(_, module)| module.kind.name()),
+                    .flat_map(|module| module.kind.name()),
             )
             .filter(|c| !c.to_string().is_empty())
             .collect::<Vec<_>>();
