@@ -206,7 +206,7 @@ pub type UsePath<'hir> = Path<'hir, SmallVec<[Res; 3]>>;
 
 impl Path<'_> {
     pub fn is_global(&self) -> bool {
-        matches!(self.segments, [PathSegment { ident: Ident { name: kw::PathRoot, .. }, .. }, ..])
+        self.segments.get(0).is_some_and(|segment| segment.ident.name == kw::PathRoot)
     }
 }
 
@@ -1059,10 +1059,7 @@ impl Attribute {
 
     pub fn value_lit(&self) -> Option<&MetaItemLit> {
         match &self.kind {
-            AttrKind::Normal(n) => match n.as_ref() {
-                AttrItem { args: AttrArgs::Eq { expr, .. }, .. } => Some(expr),
-                _ => None,
-            },
+            AttrKind::Normal(box AttrItem { args: AttrArgs::Eq { expr, .. }, .. }) => Some(expr),
             _ => None,
         }
     }
@@ -1075,12 +1072,9 @@ impl AttributeExt for Attribute {
 
     fn meta_item_list(&self) -> Option<ThinVec<ast::MetaItemInner>> {
         match &self.kind {
-            AttrKind::Normal(n) => match n.as_ref() {
-                AttrItem { args: AttrArgs::Delimited(d), .. } => {
-                    ast::MetaItemKind::list_from_tokens(d.tokens.clone())
-                }
-                _ => None,
-            },
+            AttrKind::Normal(box AttrItem { args: AttrArgs::Delimited(d), .. }) => {
+                ast::MetaItemKind::list_from_tokens(d.tokens.clone())
+            }
             _ => None,
         }
     }
@@ -1096,25 +1090,19 @@ impl AttributeExt for Attribute {
     /// For a single-segment attribute, returns its name; otherwise, returns `None`.
     fn ident(&self) -> Option<Ident> {
         match &self.kind {
-            AttrKind::Normal(n) => {
-                if let [ident] = n.path.segments.as_ref() {
-                    Some(*ident)
-                } else {
-                    None
-                }
-            }
-            AttrKind::DocComment(..) => None,
+            AttrKind::Normal(box AttrItem {
+                path: AttrPath { segments: box [ident], .. }, ..
+            }) => Some(*ident),
+            _ => None,
         }
     }
 
     fn path_matches(&self, name: &[Symbol]) -> bool {
-        match &self.kind {
-            AttrKind::Normal(n) => {
-                n.path.segments.len() == name.len()
-                    && n.path.segments.iter().zip(name).all(|(s, n)| s.name == *n)
-            }
-            AttrKind::DocComment(..) => false,
-        }
+        matches!(
+            &self.kind,
+            AttrKind::Normal(box AttrItem { path: AttrPath { segments, .. }, .. })
+                if segments.iter().map(|s| &s.name).eq(name)
+        )
     }
 
     fn is_doc_comment(&self) -> bool {
@@ -1126,12 +1114,7 @@ impl AttributeExt for Attribute {
     }
 
     fn is_word(&self) -> bool {
-        match &self.kind {
-            AttrKind::Normal(n) => {
-                matches!(n.args, AttrArgs::Empty)
-            }
-            AttrKind::DocComment(..) => false,
-        }
+        matches!(self.kind, AttrKind::Normal(box AttrItem { args: AttrArgs::Empty, .. }))
     }
 
     fn ident_path(&self) -> Option<SmallVec<[Ident; 1]>> {
@@ -2345,10 +2328,10 @@ impl Expr<'_> {
 /// Checks if the specified expression is a built-in range literal.
 /// (See: `LoweringContext::lower_expr()`).
 pub fn is_range_literal(expr: &Expr<'_>) -> bool {
-    match expr.kind {
+    matches!(
+        expr.kind,
         // All built-in range literals but `..=` and `..` desugar to `Struct`s.
-        ExprKind::Struct(ref qpath, _, _) => matches!(
-            **qpath,
+        ExprKind::Struct(
             QPath::LangItem(
                 LangItem::Range
                     | LangItem::RangeTo
@@ -2356,16 +2339,15 @@ pub fn is_range_literal(expr: &Expr<'_>) -> bool {
                     | LangItem::RangeFull
                     | LangItem::RangeToInclusive,
                 ..
-            )
-        ),
-
+            ),
+            ..
+        ) |
         // `..=` desugars into `::std::ops::RangeInclusive::new(...)`.
-        ExprKind::Call(ref func, _) => {
-            matches!(func.kind, ExprKind::Path(QPath::LangItem(LangItem::RangeInclusiveNew, ..)))
-        }
-
-        _ => false,
-    }
+        ExprKind::Call(
+            Expr { kind: ExprKind::Path(QPath::LangItem(LangItem::RangeInclusiveNew, ..)), .. },
+            ..
+        )
+    )
 }
 
 /// Checks if the specified expression needs parentheses for prefix
