@@ -150,43 +150,42 @@ where
         assumption: I::Clause,
         then: impl FnOnce(&mut EvalCtxt<'_, D>) -> QueryResult<I>,
     ) -> Result<Candidate<I>, NoSolution> {
-        if let Some(projection_pred) = assumption.as_projection_clause() {
-            if projection_pred.item_def_id() == goal.predicate.def_id() {
-                let cx = ecx.cx();
-                if !DeepRejectCtxt::relate_rigid_rigid(ecx.cx()).args_may_unify(
-                    goal.predicate.alias.args,
-                    projection_pred.skip_binder().projection_term.args,
-                ) {
-                    return Err(NoSolution);
-                }
-                ecx.probe_trait_candidate(source).enter(|ecx| {
-                    let assumption_projection_pred =
-                        ecx.instantiate_binder_with_infer(projection_pred);
-                    ecx.eq(
-                        goal.param_env,
-                        goal.predicate.alias,
-                        assumption_projection_pred.projection_term,
-                    )?;
+        let Some(projection_pred) = assumption.as_projection_clause() else {
+            return Err(NoSolution);
+        };
 
-                    ecx.instantiate_normalizes_to_term(goal, assumption_projection_pred.term);
-
-                    // Add GAT where clauses from the trait's definition
-                    // FIXME: We don't need these, since these are the type's own WF obligations.
-                    ecx.add_goals(
-                        GoalSource::Misc,
-                        cx.own_predicates_of(goal.predicate.def_id())
-                            .iter_instantiated(cx, goal.predicate.alias.args)
-                            .map(|pred| goal.with(cx, pred)),
-                    );
-
-                    then(ecx)
-                })
-            } else {
-                Err(NoSolution)
-            }
-        } else {
-            Err(NoSolution)
+        if projection_pred.item_def_id() != goal.predicate.def_id()
+            || !DeepRejectCtxt::relate_rigid_rigid(ecx.cx()).args_may_unify(
+                goal.predicate.alias.args,
+                projection_pred.skip_binder().projection_term.args,
+            )
+        {
+            return Err(NoSolution);
         }
+
+        let cx = ecx.cx();
+
+        ecx.probe_trait_candidate(source).enter(|ecx| {
+            let assumption_projection_pred = ecx.instantiate_binder_with_infer(projection_pred);
+            ecx.eq(
+                goal.param_env,
+                goal.predicate.alias,
+                assumption_projection_pred.projection_term,
+            )?;
+
+            ecx.instantiate_normalizes_to_term(goal, assumption_projection_pred.term);
+
+            // Add GAT where clauses from the trait's definition
+            // FIXME: We don't need these, since these are the type's own WF obligations.
+            ecx.add_goals(
+                GoalSource::Misc,
+                cx.own_predicates_of(goal.predicate.def_id())
+                    .iter_instantiated(cx, goal.predicate.alias.args)
+                    .map(|pred| goal.with(cx, pred)),
+            );
+
+            then(ecx)
+        })
     }
 
     fn consider_additional_alias_assumptions(
@@ -378,17 +377,15 @@ where
         goal_kind: ty::ClosureKind,
     ) -> Result<Candidate<I>, NoSolution> {
         let cx = ecx.cx();
-        let tupled_inputs_and_output =
-            match structural_traits::extract_tupled_inputs_and_output_from_callable(
+        let Some(tupled_inputs_and_output) =
+            structural_traits::extract_tupled_inputs_and_output_from_callable(
                 cx,
                 goal.predicate.self_ty(),
                 goal_kind,
-            )? {
-                Some(tupled_inputs_and_output) => tupled_inputs_and_output,
-                None => {
-                    return ecx.forced_ambiguity(MaybeCause::Ambiguity);
-                }
-            };
+            )?
+        else {
+            return ecx.forced_ambiguity(MaybeCause::Ambiguity);
+        };
 
         // A built-in `Fn` impl only holds if the output is sized.
         // (FIXME: technically we only need to check this if the type is a fn ptr...)

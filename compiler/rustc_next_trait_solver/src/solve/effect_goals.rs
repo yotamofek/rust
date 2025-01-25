@@ -43,32 +43,25 @@ where
         assumption: <I as Interner>::Clause,
         then: impl FnOnce(&mut EvalCtxt<'_, D>) -> QueryResult<I>,
     ) -> Result<Candidate<I>, NoSolution> {
-        if let Some(host_clause) = assumption.as_host_effect_clause() {
-            if host_clause.def_id() == goal.predicate.def_id()
-                && host_clause.constness().satisfies(goal.predicate.constness)
-            {
-                if !DeepRejectCtxt::relate_rigid_rigid(ecx.cx()).args_may_unify(
-                    goal.predicate.trait_ref.args,
-                    host_clause.skip_binder().trait_ref.args,
-                ) {
-                    return Err(NoSolution);
-                }
+        let Some(host_clause) = assumption.as_host_effect_clause() else {
+            return Err(NoSolution);
+        };
 
-                ecx.probe_trait_candidate(source).enter(|ecx| {
-                    let assumption_trait_pred = ecx.instantiate_binder_with_infer(host_clause);
-                    ecx.eq(
-                        goal.param_env,
-                        goal.predicate.trait_ref,
-                        assumption_trait_pred.trait_ref,
-                    )?;
-                    then(ecx)
-                })
-            } else {
-                Err(NoSolution)
-            }
-        } else {
-            Err(NoSolution)
+        if host_clause.def_id() != goal.predicate.def_id()
+            || !host_clause.constness().satisfies(goal.predicate.constness)
+            || !DeepRejectCtxt::relate_rigid_rigid(ecx.cx()).args_may_unify(
+                goal.predicate.trait_ref.args,
+                host_clause.skip_binder().trait_ref.args,
+            )
+        {
+            return Err(NoSolution);
         }
+
+        ecx.probe_trait_candidate(source).enter(|ecx| {
+            let assumption_trait_pred = ecx.instantiate_binder_with_infer(host_clause);
+            ecx.eq(goal.param_env, goal.predicate.trait_ref, assumption_trait_pred.trait_ref)?;
+            then(ecx)
+        })
     }
 
     /// Register additional assumptions for aliases corresponding to `~const` item bounds.
@@ -82,20 +75,19 @@ where
         goal: Goal<I, Self>,
         alias_ty: ty::AliasTy<I>,
     ) -> Vec<Candidate<I>> {
-        let cx = ecx.cx();
-        let mut candidates = vec![];
-
         if !ecx.cx().alias_has_const_conditions(alias_ty.def_id) {
             return vec![];
         }
 
-        for clause in elaborate::elaborate(
+        let cx = ecx.cx();
+        elaborate::elaborate(
             cx,
             cx.explicit_implied_const_bounds(alias_ty.def_id)
                 .iter_instantiated(cx, alias_ty.args)
                 .map(|trait_ref| trait_ref.to_host_effect_clause(cx, goal.predicate.constness)),
-        ) {
-            candidates.extend(Self::probe_and_match_goal_against_assumption(
+        )
+        .flat_map(|clause| {
+            Self::probe_and_match_goal_against_assumption(
                 ecx,
                 CandidateSource::AliasBound,
                 goal,
@@ -115,10 +107,9 @@ where
                     );
                     ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
                 },
-            ));
-        }
-
-        candidates
+            )
+        })
+        .collect()
     }
 
     fn consider_impl_candidate(

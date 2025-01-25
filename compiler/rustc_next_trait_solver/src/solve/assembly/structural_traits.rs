@@ -342,13 +342,11 @@ pub(in crate::solve) fn extract_tupled_inputs_and_output_from_callable<I: Intern
                     args,
                     sig,
                 )
-            } else {
+            } else if goal_kind != ty::ClosureKind::FnOnce {
                 // Closure kind is not yet determined, so we return ambiguity unless
                 // the expected kind is `FnOnce` as that is always implemented.
-                if goal_kind != ty::ClosureKind::FnOnce {
-                    return Ok(None);
-                }
-
+                return Ok(None);
+            } else {
                 coroutine_closure_to_ambiguous_coroutine(
                     cx,
                     goal_kind, // No captures by ref, so this doesn't matter.

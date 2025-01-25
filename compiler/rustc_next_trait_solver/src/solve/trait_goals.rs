@@ -130,6 +130,7 @@ where
         assumption: I::Clause,
         then: impl FnOnce(&mut EvalCtxt<'_, D>) -> QueryResult<I>,
     ) -> Result<Candidate<I>, NoSolution> {
+        // ...
         if let Some(trait_clause) = assumption.as_trait_clause() {
             if trait_clause.def_id() == goal.predicate.def_id()
                 && trait_clause.polarity() == goal.predicate.polarity
@@ -253,27 +254,20 @@ where
         let self_ty = goal.predicate.self_ty();
         match goal.predicate.polarity {
             // impl FnPtr for FnPtr {}
-            ty::PredicatePolarity::Positive => {
-                if self_ty.is_fn_ptr() {
-                    ecx.probe_builtin_trait_candidate(BuiltinImplSource::Misc).enter(|ecx| {
-                        ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
-                    })
-                } else {
-                    Err(NoSolution)
-                }
-            }
-            //  impl !FnPtr for T where T != FnPtr && T is rigid {}
-            ty::PredicatePolarity::Negative => {
+            ty::PredicatePolarity::Positive if self_ty.is_fn_ptr() => ecx
+                .probe_builtin_trait_candidate(BuiltinImplSource::Misc)
+                .enter(|ecx| ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)),
+            // impl !FnPtr for T where T != FnPtr && T is rigid {}
+            ty::PredicatePolarity::Negative
                 // If a type is rigid and not a fn ptr, then we know for certain
                 // that it does *not* implement `FnPtr`.
-                if !self_ty.is_fn_ptr() && self_ty.is_known_rigid() {
-                    ecx.probe_builtin_trait_candidate(BuiltinImplSource::Misc).enter(|ecx| {
-                        ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
-                    })
-                } else {
-                    Err(NoSolution)
-                }
+                if !self_ty.is_fn_ptr() && self_ty.is_known_rigid() =>
+            {
+                ecx.probe_builtin_trait_candidate(BuiltinImplSource::Misc).enter(|ecx| {
+                    ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
+                })
             }
+            _ => Err(NoSolution),
         }
     }
 
@@ -287,17 +281,15 @@ where
         }
 
         let cx = ecx.cx();
-        let tupled_inputs_and_output =
-            match structural_traits::extract_tupled_inputs_and_output_from_callable(
+        let Some(tupled_inputs_and_output) =
+            structural_traits::extract_tupled_inputs_and_output_from_callable(
                 cx,
                 goal.predicate.self_ty(),
                 goal_kind,
-            )? {
-                Some(a) => a,
-                None => {
-                    return ecx.forced_ambiguity(MaybeCause::Ambiguity);
-                }
-            };
+            )?
+        else {
+            return ecx.forced_ambiguity(MaybeCause::Ambiguity);
+        };
 
         // A built-in `Fn` impl only holds if the output is sized.
         // (FIXME: technically we only need to check this if the type is a fn ptr...)
@@ -403,12 +395,12 @@ where
             return Err(NoSolution);
         }
 
-        if let ty::Tuple(..) = goal.predicate.self_ty().kind() {
-            ecx.probe_builtin_trait_candidate(BuiltinImplSource::Misc)
-                .enter(|ecx| ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes))
-        } else {
-            Err(NoSolution)
-        }
+        let ty::Tuple(..) = goal.predicate.self_ty().kind() else {
+            return Err(NoSolution);
+        };
+
+        ecx.probe_builtin_trait_candidate(BuiltinImplSource::Misc)
+            .enter(|ecx| ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes))
     }
 
     fn consider_builtin_pointee_candidate(
@@ -637,10 +629,8 @@ where
             return vec![];
         }
 
-        let result_to_single = |result| match result {
-            Ok(resp) => vec![resp],
-            Err(NoSolution) => vec![],
-        };
+        let result_to_single =
+            |result: Result<_, _>| result.map(|resp| vec![resp]).unwrap_or_default();
 
         ecx.probe(|_| ProbeKind::UnsizeAssembly).enter(|ecx| {
             let a_ty = goal.predicate.self_ty();
@@ -726,12 +716,11 @@ where
         let cx = self.cx();
         let Goal { predicate: (a_ty, _b_ty), .. } = goal;
 
-        let mut responses = vec![];
         // If the principal def ids match (or are both none), then we're not doing
         // trait upcasting. We're just removing auto traits (or shortening the lifetime).
         let b_principal_def_id = b_data.principal_def_id();
         if a_data.principal_def_id() == b_principal_def_id || b_principal_def_id.is_none() {
-            responses.extend(self.consider_builtin_upcast_to_principal(
+            self.consider_builtin_upcast_to_principal(
                 goal,
                 CandidateSource::BuiltinImpl(BuiltinImplSource::Misc),
                 a_data,
@@ -739,28 +728,30 @@ where
                 b_data,
                 b_region,
                 a_data.principal(),
-            ));
+            )
+            .into_iter()
+            .collect()
         } else if let Some(a_principal) = a_data.principal() {
-            for (idx, new_a_principal) in
-                elaborate::supertraits(self.cx(), a_principal.with_self_ty(cx, a_ty))
-                    .enumerate()
-                    .skip(1)
-            {
-                responses.extend(self.consider_builtin_upcast_to_principal(
-                    goal,
-                    CandidateSource::BuiltinImpl(BuiltinImplSource::TraitUpcasting(idx)),
-                    a_data,
-                    a_region,
-                    b_data,
-                    b_region,
-                    Some(new_a_principal.map_bound(|trait_ref| {
-                        ty::ExistentialTraitRef::erase_self_ty(cx, trait_ref)
-                    })),
-                ));
-            }
+            elaborate::supertraits(self.cx(), a_principal.with_self_ty(cx, a_ty))
+                .enumerate()
+                .skip(1)
+                .flat_map(|(idx, new_a_principal)| {
+                    self.consider_builtin_upcast_to_principal(
+                        goal,
+                        CandidateSource::BuiltinImpl(BuiltinImplSource::TraitUpcasting(idx)),
+                        a_data,
+                        a_region,
+                        b_data,
+                        b_region,
+                        Some(new_a_principal.map_bound(|trait_ref| {
+                            ty::ExistentialTraitRef::erase_self_ty(cx, trait_ref)
+                        })),
+                    )
+                })
+                .collect()
+        } else {
+            vec![]
         }
-
-        responses
     }
 
     fn consider_builtin_unsize_to_dyn_candidate(

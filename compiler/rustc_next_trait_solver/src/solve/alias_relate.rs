@@ -36,23 +36,21 @@ where
         let Goal { param_env, predicate: (lhs, rhs, direction) } = goal;
         debug_assert!(lhs.to_alias_term().is_some() || rhs.to_alias_term().is_some());
 
-        // Structurally normalize the lhs.
-        let lhs = if let Some(alias) = lhs.to_alias_term() {
-            let term = self.next_term_infer_of_kind(lhs);
-            self.add_normalizes_to_goal(goal.with(cx, ty::NormalizesTo { alias, term }));
-            term
-        } else {
-            lhs
+        let mut normalize = |term: I::Term| {
+            if let Some(alias) = term.to_alias_term() {
+                let term = self.next_term_infer_of_kind(term);
+                self.add_normalizes_to_goal(goal.with(cx, ty::NormalizesTo { alias, term }));
+                term
+            } else {
+                term
+            }
         };
 
+        // Structurally normalize the lhs.
+        let lhs = normalize(lhs);
+
         // Structurally normalize the rhs.
-        let rhs = if let Some(alias) = rhs.to_alias_term() {
-            let term = self.next_term_infer_of_kind(rhs);
-            self.add_normalizes_to_goal(goal.with(cx, ty::NormalizesTo { alias, term }));
-            term
-        } else {
-            rhs
-        };
+        let rhs = normalize(rhs);
 
         // Add a `make_canonical_response` probe step so that we treat this as
         // a candidate, even if `try_evaluate_added_goals` bails due to an error.
@@ -73,12 +71,10 @@ where
         match (lhs.to_alias_term(), rhs.to_alias_term()) {
             (None, None) => {
                 self.relate(param_env, lhs, variance, rhs)?;
-                self.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
             }
 
             (Some(alias), None) => {
                 self.relate_rigid_alias_non_alias(param_env, alias, variance, rhs)?;
-                self.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
             }
             (None, Some(alias)) => {
                 self.relate_rigid_alias_non_alias(
@@ -87,13 +83,12 @@ where
                     variance.xform(ty::Contravariant),
                     lhs,
                 )?;
-                self.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
             }
 
             (Some(alias_lhs), Some(alias_rhs)) => {
                 self.relate(param_env, alias_lhs, variance, alias_rhs)?;
-                self.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
             }
         }
+        self.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
     }
 }

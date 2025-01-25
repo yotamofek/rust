@@ -492,15 +492,18 @@ where
         goal: Goal<I, G>,
         candidates: &mut Vec<Candidate<I>>,
     ) {
-        for (i, assumption) in goal.param_env.caller_bounds().iter().enumerate() {
-            candidates.extend(G::probe_and_consider_implied_clause(
-                self,
-                CandidateSource::ParamEnv(i),
-                goal,
-                assumption,
-                [],
-            ));
-        }
+        candidates.extend(goal.param_env.caller_bounds().iter().enumerate().filter_map(
+            |(i, assumption)| {
+                G::probe_and_consider_implied_clause(
+                    self,
+                    CandidateSource::ParamEnv(i),
+                    goal,
+                    assumption,
+                    [],
+                )
+                .ok()
+            },
+        ));
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -509,7 +512,7 @@ where
         goal: Goal<I, G>,
         candidates: &mut Vec<Candidate<I>>,
     ) {
-        let () = self.probe(|_| ProbeKind::NormalizedSelfTyAssembly).enter(|ecx| {
+        self.probe(|_| ProbeKind::NormalizedSelfTyAssembly).enter(|ecx| {
             ecx.assemble_alias_bound_candidates_recur(goal.predicate.self_ty(), goal, candidates);
         });
     }
@@ -580,17 +583,21 @@ where
             }
         };
 
-        for assumption in
-            self.cx().item_bounds(alias_ty.def_id).iter_instantiated(self.cx(), alias_ty.args)
-        {
-            candidates.extend(G::probe_and_consider_implied_clause(
-                self,
-                CandidateSource::AliasBound,
-                goal,
-                assumption,
-                [],
-            ));
-        }
+        candidates.extend(
+            self.cx()
+                .item_bounds(alias_ty.def_id)
+                .iter_instantiated(self.cx(), alias_ty.args)
+                .filter_map(|assumption| {
+                    G::probe_and_consider_implied_clause(
+                        self,
+                        CandidateSource::AliasBound,
+                        goal,
+                        assumption,
+                        [],
+                    )
+                    .ok()
+                }),
+        );
 
         candidates.extend(G::consider_additional_alias_assumptions(self, goal, alias_ty));
 
@@ -599,11 +606,9 @@ where
         }
 
         // Recurse on the self type of the projection.
-        match self.structurally_normalize_ty(goal.param_env, alias_ty.self_ty()) {
-            Ok(next_self_ty) => {
-                self.assemble_alias_bound_candidates_recur(next_self_ty, goal, candidates)
-            }
-            Err(NoSolution) => {}
+        if let Ok(next_self_ty) = self.structurally_normalize_ty(goal.param_env, alias_ty.self_ty())
+        {
+            self.assemble_alias_bound_candidates_recur(next_self_ty, goal, candidates)
         }
     }
 
@@ -660,36 +665,43 @@ where
         // Consider all of the auto-trait and projection bounds, which don't
         // need to be recorded as a `BuiltinImplSource::Object` since they don't
         // really have a vtable base...
-        for bound in bounds.iter() {
+        candidates.extend(bounds.iter().filter_map(|bound| {
             match bound.skip_binder() {
                 ty::ExistentialPredicate::Trait(_) => {
                     // Skip principal
+                    None
                 }
                 ty::ExistentialPredicate::Projection(_)
                 | ty::ExistentialPredicate::AutoTrait(_) => {
-                    candidates.extend(G::probe_and_consider_object_bound_candidate(
+                    G::probe_and_consider_object_bound_candidate(
                         self,
                         CandidateSource::BuiltinImpl(BuiltinImplSource::Misc),
                         goal,
                         bound.with_self_ty(cx, self_ty),
-                    ));
+                    )
+                    .ok()
                 }
             }
-        }
+        }));
 
         // FIXME: We only need to do *any* of this if we're considering a trait goal,
         // since we don't need to look at any supertrait or anything if we are doing
         // a projection goal.
         if let Some(principal) = bounds.principal() {
             let principal_trait_ref = principal.with_self_ty(cx, self_ty);
-            for (idx, assumption) in elaborate::supertraits(cx, principal_trait_ref).enumerate() {
-                candidates.extend(G::probe_and_consider_object_bound_candidate(
-                    self,
-                    CandidateSource::BuiltinImpl(BuiltinImplSource::Object(idx)),
-                    goal,
-                    assumption.upcast(cx),
-                ));
-            }
+            candidates.extend(
+                elaborate::supertraits(cx, principal_trait_ref).enumerate().filter_map(
+                    |(idx, assumption)| {
+                        G::probe_and_consider_object_bound_candidate(
+                            self,
+                            CandidateSource::BuiltinImpl(BuiltinImplSource::Object(idx)),
+                            goal,
+                            assumption.upcast(cx),
+                        )
+                        .ok()
+                    },
+                ),
+            );
         }
     }
 
