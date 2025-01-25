@@ -289,10 +289,8 @@ impl<'a, D: SolverDelegate<Interner = I>, I: Interner> Canonicalizer<'a, D, I> {
                 for var in var_infos.iter_mut() {
                     // We simply put all regions from the input into the highest
                     // compressed universe, so we only deal with them at the end.
-                    if !var.is_region() {
-                        if is_existential == var.is_existential() {
-                            update_uv(var, orig_uv, is_existential)
-                        }
+                    if !var.is_region() && is_existential == var.is_existential() {
+                        update_uv(var, orig_uv, is_existential)
                     }
                 }
             }
@@ -317,40 +315,39 @@ impl<'a, D: SolverDelegate<Interner = I>, I: Interner> Canonicalizer<'a, D, I> {
 
     fn cached_fold_ty(&mut self, t: I::Ty) -> I::Ty {
         let kind = match t.kind() {
-            ty::Infer(i) => match i {
-                ty::TyVar(vid) => {
-                    assert_eq!(
-                        self.delegate.opportunistic_resolve_ty_var(vid),
-                        t,
-                        "ty vid should have been resolved fully before canonicalization"
-                    );
+            ty::Infer(ty::TyVar(vid)) => {
+                assert_eq!(
+                    self.delegate.opportunistic_resolve_ty_var(vid),
+                    t,
+                    "ty vid should have been resolved fully before canonicalization"
+                );
 
-                    CanonicalVarKind::Ty(CanonicalTyVarKind::General(
-                        self.delegate
-                            .universe_of_ty(vid)
-                            .unwrap_or_else(|| panic!("ty var should have been resolved: {t:?}")),
-                    ))
-                }
-                ty::IntVar(vid) => {
-                    assert_eq!(
-                        self.delegate.opportunistic_resolve_int_var(vid),
-                        t,
-                        "ty vid should have been resolved fully before canonicalization"
-                    );
-                    CanonicalVarKind::Ty(CanonicalTyVarKind::Int)
-                }
-                ty::FloatVar(vid) => {
-                    assert_eq!(
-                        self.delegate.opportunistic_resolve_float_var(vid),
-                        t,
-                        "ty vid should have been resolved fully before canonicalization"
-                    );
-                    CanonicalVarKind::Ty(CanonicalTyVarKind::Float)
-                }
-                ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_) => {
-                    panic!("fresh vars not expected in canonicalization")
-                }
-            },
+                CanonicalVarKind::Ty(CanonicalTyVarKind::General(
+                    self.delegate
+                        .universe_of_ty(vid)
+                        .unwrap_or_else(|| panic!("ty var should have been resolved: {t:?}")),
+                ))
+            }
+            ty::Infer(ty::IntVar(vid)) => {
+                assert_eq!(
+                    self.delegate.opportunistic_resolve_int_var(vid),
+                    t,
+                    "ty vid should have been resolved fully before canonicalization"
+                );
+                CanonicalVarKind::Ty(CanonicalTyVarKind::Int)
+            }
+            ty::Infer(ty::FloatVar(vid)) => {
+                assert_eq!(
+                    self.delegate.opportunistic_resolve_float_var(vid),
+                    t,
+                    "ty vid should have been resolved fully before canonicalization"
+                );
+                CanonicalVarKind::Ty(CanonicalTyVarKind::Float)
+            }
+            ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)) => {
+                panic!("fresh vars not expected in canonicalization")
+            }
+
             ty::Placeholder(placeholder) => match self.canonicalize_mode {
                 CanonicalizeMode::Input { .. } => CanonicalVarKind::PlaceholderTy(
                     PlaceholderLike::new(placeholder.universe(), self.variables.len().into()),
