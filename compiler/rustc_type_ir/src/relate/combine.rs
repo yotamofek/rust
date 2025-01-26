@@ -1,4 +1,4 @@
-use tracing::debug;
+use tracing::{debug, instrument};
 
 use super::{
     ExpectedFound, RelateResult, StructurallyRelateAliases, TypeRelation,
@@ -57,7 +57,7 @@ where
     match (a.kind(), b.kind()) {
         (ty::Error(e), _) | (_, ty::Error(e)) => {
             infcx.set_tainted_by_errors(e);
-            return Ok(Ty::new_error(infcx.cx(), e));
+            Ok(Ty::new_error(infcx.cx(), e))
         }
 
         // Relate integral variables to other types
@@ -146,6 +146,7 @@ where
     }
 }
 
+#[instrument(fields(R = std::any::type_name::<R>()), skip(infcx, relation))]
 pub fn super_combine_consts<Infcx, I, R>(
     infcx: &Infcx,
     relation: &mut R,
@@ -157,7 +158,6 @@ where
     I: Interner,
     R: PredicateEmittingRelation<Infcx>,
 {
-    debug!("super_combine_consts::<{}>({:?}, {:?})", std::any::type_name::<R>(), a, b);
     debug_assert!(!a.has_escaping_bound_vars());
     debug_assert!(!b.has_escaping_bound_vars());
 
