@@ -2384,7 +2384,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
         // 2) `std` suggestions before `core` suggestions.
         let mut extern_crate_names =
             self.extern_prelude.keys().map(|ident| ident.name).collect::<Vec<_>>();
-        extern_crate_names.sort_by_key(|&name| Reverse(name));
+        extern_crate_names.sort_by(|a, b| a.cmp(&b));
 
         extern_crate_names
             .into_iter()
