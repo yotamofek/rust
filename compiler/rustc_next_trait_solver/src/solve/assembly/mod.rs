@@ -8,7 +8,9 @@ use rustc_type_ir::inherent::*;
 use rustc_type_ir::lang_items::TraitSolverLangItem;
 use rustc_type_ir::solve::inspect;
 use rustc_type_ir::visit::TypeVisitableExt as _;
-use rustc_type_ir::{self as ty, Interner, TypingMode, Upcast as _, elaborate};
+use rustc_type_ir::{
+    self as ty, AliasTy, EarlyBinder, Interner, TypingMode, Upcast as _, elaborate,
+};
 use tracing::{debug, instrument};
 
 use super::trait_goals::TraitGoalProvenVia;
@@ -594,36 +596,49 @@ where
             }
         };
 
+        fn probe_and_consider_implied_clause<'e, 'd, D, I, G, C, B>(
+            ecx: &'e mut EvalCtxt<'d, D, I>,
+            alias_ty: AliasTy<I>,
+            bounds: B,
+            goal: Goal<I, G>,
+        ) -> impl Iterator<Item = Candidate<I>> + use<'e, 'd, D, I, G, C, B>
+        where
+            D: SolverDelegate<Interner = I>,
+            I: Interner,
+            G: GoalKind<D>,
+            C: IntoIterator<Item = I::Clause>,
+            B: Fn(I, I::DefId) -> EarlyBinder<I, C>,
+        {
+            bounds(ecx.cx(), alias_ty.def_id).iter_instantiated(ecx.cx(), alias_ty.args).filter_map(
+                move |assumption| {
+                    G::probe_and_consider_implied_clause(
+                        ecx,
+                        CandidateSource::AliasBound,
+                        goal,
+                        assumption,
+                        [],
+                    )
+                    .ok()
+                },
+            )
+        }
+
         match consider_self_bounds {
             AliasBoundKind::SelfBounds => {
-                for assumption in self
-                    .cx()
-                    .item_self_bounds(alias_ty.def_id)
-                    .iter_instantiated(self.cx(), alias_ty.args)
-                {
-                    candidates.extend(G::probe_and_consider_implied_clause(
-                        self,
-                        CandidateSource::AliasBound,
-                        goal,
-                        assumption,
-                        [],
-                    ));
-                }
+                candidates.extend(probe_and_consider_implied_clause(
+                    self,
+                    alias_ty,
+                    Interner::item_self_bounds,
+                    goal,
+                ));
             }
             AliasBoundKind::NonSelfBounds => {
-                for assumption in self
-                    .cx()
-                    .item_non_self_bounds(alias_ty.def_id)
-                    .iter_instantiated(self.cx(), alias_ty.args)
-                {
-                    candidates.extend(G::probe_and_consider_implied_clause(
-                        self,
-                        CandidateSource::AliasBound,
-                        goal,
-                        assumption,
-                        [],
-                    ));
-                }
+                candidates.extend(probe_and_consider_implied_clause(
+                    self,
+                    alias_ty,
+                    Interner::item_non_self_bounds,
+                    goal,
+                ));
             }
         }
 
