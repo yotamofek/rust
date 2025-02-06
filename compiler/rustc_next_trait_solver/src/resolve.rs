@@ -44,18 +44,15 @@ impl<D: SolverDelegate<Interner = I>, I: Interner> TypeFolder<I> for EagerResolv
             }
             ty::Infer(ty::IntVar(vid)) => self.delegate.opportunistic_resolve_int_var(vid),
             ty::Infer(ty::FloatVar(vid)) => self.delegate.opportunistic_resolve_float_var(vid),
-            _ => {
-                if t.has_infer() {
-                    if let Some(&ty) = self.cache.get(&t) {
-                        return ty;
-                    }
-                    let res = t.super_fold_with(self);
-                    assert!(self.cache.insert(t, res));
-                    res
-                } else {
-                    t
+            _ if t.has_infer() => {
+                if let Some(&ty) = self.cache.get(&t) {
+                    return ty;
                 }
+                let res = t.super_fold_with(self);
+                assert!(self.cache.insert(t, res));
+                res
             }
+            _ => t,
         }
     }
 
@@ -76,13 +73,8 @@ impl<D: SolverDelegate<Interner = I>, I: Interner> TypeFolder<I> for EagerResolv
                     resolved
                 }
             }
-            _ => {
-                if c.has_infer() {
-                    c.super_fold_with(self)
-                } else {
-                    c
-                }
-            }
+            _ if c.has_infer() => c.super_fold_with(self),
+            _ => c,
         }
     }
 }

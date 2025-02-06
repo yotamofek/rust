@@ -1,3 +1,5 @@
+use std::cmp;
+
 use rustc_ast::expand::StrippedCfgItem;
 use rustc_ast::ptr::P;
 use rustc_ast::visit::{self, Visitor};
@@ -1094,7 +1096,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     }
                 }
                 Scope::ExternPrelude => {
-                    suggestions.extend(this.extern_prelude.iter().filter_map(|(ident, _)| {
+                    suggestions.extend(this.extern_prelude.keys().filter_map(|ident| {
                         let res = Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id());
                         filter_fn(res).then_some(TypoSuggestion::typo_from_ident(*ident, res))
                     }));
@@ -1307,12 +1309,16 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     let is_extern_crate_that_also_appears_in_prelude =
                         name_binding.is_extern_crate() && lookup_ident.span.at_least_rust_2018();
 
-                    if !is_extern_crate_that_also_appears_in_prelude || alias_import {
+                    if (!is_extern_crate_that_also_appears_in_prelude || alias_import)
                         // add the module to the lookup
-                        if seen_modules.insert(module.def_id()) {
-                            if via_import { &mut worklist_via_import } else { &mut worklist }
-                                .push((module, path_segments, child_accessible, child_doc_visible));
-                        }
+                        && seen_modules.insert(module.def_id())
+                    {
+                        if via_import { &mut worklist_via_import } else { &mut worklist }.push((
+                            module,
+                            path_segments,
+                            child_accessible,
+                            child_doc_visible,
+                        ));
                     }
                 }
             })
@@ -1889,9 +1895,9 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
 
             match binding.kind {
                 NameBindingKind::Import { import, .. } => {
-                    for segment in import.module_path.iter().skip(1) {
-                        path.push(segment.ident.to_string());
-                    }
+                    path.extend(
+                        import.module_path.iter().skip(1).map(|segment| segment.ident.to_string()),
+                    );
                     sugg_paths.push((
                         path.iter()
                             .cloned()
@@ -1931,25 +1937,23 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             };
             err.subdiagnostic(note);
         }
-        // We prioritize shorter paths, non-core imports and direct imports over the alternatives.
-        sugg_paths.sort_by_key(|(p, reexport)| (p.len(), p[0] == "core", *reexport));
-        for (sugg, reexport) in sugg_paths {
-            if not_publicly_reexported {
-                break;
-            }
-            if sugg.len() <= 1 {
+        if !not_publicly_reexported {
+            // We prioritize shorter paths, non-core imports and direct imports over the alternatives.
+            sugg_paths.sort_by_key(|(p, reexport)| (p.len(), p[0] == "core", *reexport));
+
+            if let Some((sugg, reexport)) = sugg_paths.into_iter().find(|(sugg, _)| {
                 // A single path segment suggestion is wrong. This happens on circular imports.
                 // `tests/ui/imports/issue-55884-2.rs`
-                continue;
+                sugg.len() > 1
+            }) {
+                let path = sugg.join("::");
+                let sugg = if reexport {
+                    errors::ImportIdent::ThroughReExport { span: dedup_span, ident, path }
+                } else {
+                    errors::ImportIdent::Directly { span: dedup_span, ident, path }
+                };
+                err.subdiagnostic(sugg);
             }
-            let path = sugg.join("::");
-            let sugg = if reexport {
-                errors::ImportIdent::ThroughReExport { span: dedup_span, ident, path }
-            } else {
-                errors::ImportIdent::Directly { span: dedup_span, ident, path }
-            };
-            err.subdiagnostic(sugg);
-            break;
         }
 
         err.emit();
@@ -1966,11 +1970,11 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             .map(|ident| ident.name)
             .chain(
                 self.module_map
-                    .iter()
-                    .filter(|(_, module)| {
+                    .values()
+                    .filter(|module| {
                         current_module.is_ancestor_of(**module) && current_module != **module
                     })
-                    .flat_map(|(_, module)| module.kind.name()),
+                    .flat_map(|module| module.kind.name()),
             )
             .filter(|c| !c.to_string().is_empty())
             .collect::<Vec<_>>();
@@ -2260,13 +2264,13 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
         mut path: Vec<Segment>,
         parent_scope: &ParentScope<'ra>,
     ) -> Option<(Vec<Segment>, Option<String>)> {
-        match (path.get(0), path.get(1)) {
+        match path[..] {
             // `{{root}}::ident::...` on both editions.
             // On 2015 `{{root}}` is usually added implicitly.
-            (Some(fst), Some(snd))
+            [fst, snd, ..]
                 if fst.ident.name == kw::PathRoot && !snd.ident.is_path_segment_keyword() => {}
             // `ident::...` on 2018.
-            (Some(fst), _)
+            [fst, ..]
                 if fst.ident.span.at_least_rust_2018() && !fst.ident.is_path_segment_keyword() =>
             {
                 // Insert a placeholder that's later replaced by `self`/`super`/etc.
@@ -2378,19 +2382,18 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
         // 2) `std` suggestions before `core` suggestions.
         let mut extern_crate_names =
             self.extern_prelude.keys().map(|ident| ident.name).collect::<Vec<_>>();
-        extern_crate_names.sort_by(|a, b| b.as_str().partial_cmp(a.as_str()).unwrap());
+        extern_crate_names.sort_by(|a, b| a.cmp(&b));
 
-        for name in extern_crate_names.into_iter() {
-            // Replace first ident with a crate name and check if that is valid.
-            path[0].ident.name = name;
-            let result = self.maybe_resolve_path(&path, None, parent_scope, None);
-            debug!(?path, ?name, ?result);
-            if let PathResult::Module(..) = result {
-                return Some((path, None));
-            }
-        }
-
-        None
+        extern_crate_names
+            .into_iter()
+            .any(|name| {
+                // Replace first ident with a crate name and check if that is valid.
+                path[0].ident.name = name;
+                let result = self.maybe_resolve_path(&path, None, parent_scope, None);
+                debug!(?path, ?name, ?result);
+                matches!(result, PathResult::Module(..))
+            })
+            .then_some((path, None))
     }
 
     /// Suggests importing a macro from the root of the crate rather than a module within
@@ -3081,20 +3084,21 @@ impl<'tcx> visit::Visitor<'tcx> for UsePlacementFinder {
 }
 
 fn search_for_any_use_in_items(items: &[P<ast::Item>]) -> Option<Span> {
-    for item in items {
-        if let ItemKind::Use(..) = item.kind
-            && is_span_suitable_for_use_injection(item.span)
-        {
-            let mut lo = item.span.lo();
-            for attr in &item.attrs {
-                if attr.span.eq_ctxt(item.span) {
-                    lo = std::cmp::min(lo, attr.span.lo());
-                }
-            }
-            return Some(Span::new(lo, lo, item.span.ctxt(), item.span.parent()));
-        }
-    }
-    None
+    items
+        .iter()
+        .find(|item| {
+            matches!(item.kind, ItemKind::Use(..)) && is_span_suitable_for_use_injection(item.span)
+        })
+        .map(|item| {
+            let lo = item
+                .attrs
+                .iter()
+                .filter(|attr| attr.span.eq_ctxt(item.span))
+                .map(|attr| attr.span.lo())
+                .fold(item.span.lo(), cmp::min);
+
+            Span::new(lo, lo, item.span.ctxt(), item.span.parent())
+        })
 }
 
 fn is_span_suitable_for_use_injection(s: Span) -> bool {

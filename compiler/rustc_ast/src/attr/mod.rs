@@ -534,13 +534,14 @@ impl MetaItemInner {
     pub fn singleton_lit_list(&self) -> Option<(Symbol, &MetaItemLit)> {
         self.meta_item().and_then(|meta_item| {
             meta_item.meta_item_list().and_then(|meta_item_list| {
-                if meta_item_list.len() == 1
-                    && let Some(ident) = meta_item.ident()
-                    && let Some(lit) = meta_item_list[0].lit()
+                if let Some(ident) = meta_item.ident()
+                    && let [item] = meta_item_list
+                    && let Some(lit) = item.lit()
                 {
-                    return Some((ident.name, lit));
+                    Some((ident.name, lit))
+                } else {
+                    None
                 }
-                None
             })
         })
     }

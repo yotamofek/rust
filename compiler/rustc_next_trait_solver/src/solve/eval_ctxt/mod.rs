@@ -110,7 +110,7 @@ struct NestedGoals<I: Interner> {
 
 impl<I: Interner> NestedGoals<I> {
     fn new() -> Self {
-        Self { normalizes_to_goals: Vec::new(), goals: Vec::new() }
+        Self::default()
     }
 
     fn is_empty(&self) -> bool {

@@ -286,40 +286,40 @@ impl<D: SolverDelegate<Interner = I>, I: Interner> ProofTreeBuilder<D> {
         &mut self,
         canonical_goal_evaluation: ProofTreeBuilder<D>,
     ) {
-        if let Some(this) = self.as_mut() {
-            match (this, *canonical_goal_evaluation.state.unwrap()) {
-                (
-                    DebugSolver::GoalEvaluation(goal_evaluation),
-                    DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluation),
-                ) => {
-                    let prev = goal_evaluation.evaluation.replace(canonical_goal_evaluation);
-                    assert_eq!(prev, None);
-                }
-                _ => unreachable!(),
+        let Some(this) = self.as_mut() else { return };
+
+        match (this, *canonical_goal_evaluation.state.unwrap()) {
+            (
+                DebugSolver::GoalEvaluation(goal_evaluation),
+                DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluation),
+            ) => {
+                let prev = goal_evaluation.evaluation.replace(canonical_goal_evaluation);
+                assert_eq!(prev, None);
             }
+            _ => unreachable!(),
         }
     }
 
     pub(crate) fn canonical_goal_evaluation_overflow(&mut self) {
-        if let Some(this) = self.as_mut() {
-            match this {
-                DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluation) => {
-                    canonical_goal_evaluation.encountered_overflow = true;
-                }
-                _ => unreachable!(),
-            };
-        }
+        let Some(this) = self.as_mut() else { return };
+
+        match this {
+            DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluation) => {
+                canonical_goal_evaluation.encountered_overflow = true;
+            }
+            _ => unreachable!(),
+        };
     }
 
     pub(crate) fn goal_evaluation(&mut self, goal_evaluation: ProofTreeBuilder<D>) {
-        if let Some(this) = self.as_mut() {
-            match this {
-                DebugSolver::Root => *this = *goal_evaluation.state.unwrap(),
-                DebugSolver::CanonicalGoalEvaluationStep(_) => {
-                    assert!(goal_evaluation.state.is_none())
-                }
-                _ => unreachable!(),
+        let Some(this) = self.as_mut() else { return };
+
+        match this {
+            DebugSolver::Root => *this = *goal_evaluation.state.unwrap(),
+            DebugSolver::CanonicalGoalEvaluationStep(_) => {
+                assert!(goal_evaluation.state.is_none())
             }
+            _ => unreachable!(),
         }
     }
 
@@ -340,26 +340,27 @@ impl<D: SolverDelegate<Interner = I>, I: Interner> ProofTreeBuilder<D> {
     }
 
     pub(crate) fn goal_evaluation_step(&mut self, goal_evaluation_step: ProofTreeBuilder<D>) {
-        if let Some(this) = self.as_mut() {
-            match (this, *goal_evaluation_step.state.unwrap()) {
-                (
-                    DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluations),
-                    DebugSolver::CanonicalGoalEvaluationStep(goal_evaluation_step),
-                ) => {
-                    canonical_goal_evaluations.final_revision = Some(goal_evaluation_step);
-                }
-                _ => unreachable!(),
+        let Some(this) = self.as_mut() else { return };
+
+        match (this, *goal_evaluation_step.state.unwrap()) {
+            (
+                DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluations),
+                DebugSolver::CanonicalGoalEvaluationStep(goal_evaluation_step),
+            ) => {
+                canonical_goal_evaluations.final_revision = Some(goal_evaluation_step);
             }
+            _ => unreachable!(),
         }
     }
 
     pub(crate) fn add_var_value<T: Into<I::GenericArg>>(&mut self, arg: T) {
-        match self.as_mut() {
-            None => {}
-            Some(DebugSolver::CanonicalGoalEvaluationStep(state)) => {
+        let Some(s) = self.as_mut() else { return };
+
+        match s {
+            DebugSolver::CanonicalGoalEvaluationStep(state) => {
                 state.var_values.push(arg.into());
             }
-            Some(s) => panic!("tried to add var values to {s:?}"),
+            s => panic!("tried to add var values to {s:?}"),
         }
     }
 
@@ -501,22 +502,19 @@ impl<D: SolverDelegate<Interner = I>, I: Interner> ProofTreeBuilder<D> {
     }
 
     pub(crate) fn query_result(&mut self, result: QueryResult<I>) {
-        if let Some(this) = self.as_mut() {
-            match this {
-                DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluation) => {
-                    assert_eq!(canonical_goal_evaluation.result.replace(result), None);
-                }
-                DebugSolver::CanonicalGoalEvaluationStep(evaluation_step) => {
-                    assert_eq!(
-                        evaluation_step
-                            .evaluation
-                            .kind
-                            .replace(inspect::ProbeKind::Root { result }),
-                        None
-                    );
-                }
-                _ => unreachable!(),
+        let Some(this) = self.as_mut() else { return };
+
+        match this {
+            DebugSolver::CanonicalGoalEvaluation(canonical_goal_evaluation) => {
+                assert_eq!(canonical_goal_evaluation.result.replace(result), None);
             }
+            DebugSolver::CanonicalGoalEvaluationStep(evaluation_step) => {
+                assert_eq!(
+                    evaluation_step.evaluation.kind.replace(inspect::ProbeKind::Root { result }),
+                    None
+                );
+            }
+            _ => unreachable!(),
         }
     }
 }
