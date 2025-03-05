@@ -563,11 +563,13 @@ pub(crate) fn build_impl(
     // Return if the trait itself or any types of the generic parameters are doc(hidden).
     let mut stack: Vec<&Type> = vec![&for_];
 
-    if let Some(did) = trait_.as_ref().map(|t| t.def_id()) {
-        if !document_hidden && tcx.is_doc_hidden(did) {
-            return;
-        }
+    if let Some(did) = trait_.as_ref().map(|t| t.def_id())
+        && !document_hidden
+        && tcx.is_doc_hidden(did)
+    {
+        return;
     }
+
     if let Some(generics) = trait_.as_ref().and_then(|t| t.generics()) {
         stack.extend(generics);
     }
@@ -648,17 +650,17 @@ fn build_module_items(
             {
                 continue;
             }
-            if let Some(def_id) = res.mod_def_id() {
-                // If we're inlining a glob import, it's possible to have
-                // two distinct modules with the same name. We don't want to
-                // inline it, or mark any of its contents as visited.
-                if did == def_id
+            // If we're inlining a glob import, it's possible to have
+            // two distinct modules with the same name. We don't want to
+            // inline it, or mark any of its contents as visited.
+            if let Some(def_id) = res.mod_def_id()
+                && (did == def_id
                     || inlined_names.contains(&(ItemType::Module, item.ident.name))
-                    || !visited.insert(def_id)
-                {
-                    continue;
-                }
+                    || !visited.insert(def_id))
+            {
+                continue;
             }
+
             if let Res::PrimTy(p) = res {
                 // Primitive types can't be inlined so generate an import instead.
                 let prim_ty = clean::PrimitiveType::from(p);

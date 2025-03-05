@@ -434,16 +434,15 @@ impl<'a> LinkReplacerInner<'a> {
             // [fn@f]
             Event::Text(text) => {
                 trace!("saw text {text}");
-                if let Some(link) = self.shortcut_link {
-                    // NOTE: same limitations as `Event::Code`
-                    if let Some(link) = self
+                // NOTE: same limitations as `Event::Code`
+                if let Some(link) = self.shortcut_link
+                    && let Some(link) = self
                         .links
                         .iter()
                         .find(|l| l.href == link.href && **text == *l.original_text)
-                    {
-                        debug!("replacing {text} with {new_text}", new_text = link.new_text);
-                        *text = CowStr::Borrowed(&link.new_text);
-                    }
+                {
+                    debug!("replacing {text} with {new_text}", new_text = link.new_text);
+                    *text = CowStr::Borrowed(&link.new_text);
                 }
             }
             // If this is a link, but not a shortcut link,
@@ -1308,18 +1307,17 @@ impl LangString {
                         seen_other_tags = true;
                         data.unknown.push(x.to_owned());
                     }
-                    LangStringToken::KeyValueAttribute(key, value) => {
-                        if key == "class" {
-                            data.added_classes.push(value.to_owned());
-                        } else if let Some(extra) = extra {
-                            extra.error_invalid_codeblock_attr(format!(
-                                "unsupported attribute `{key}`"
-                            ));
-                        }
+                    LangStringToken::KeyValueAttribute("class", value) => {
+                        data.added_classes.push(value.to_owned());
+                    }
+                    LangStringToken::KeyValueAttribute(key, ..) if let Some(extra) = extra => {
+                        extra
+                            .error_invalid_codeblock_attr(format!("unsupported attribute `{key}`"));
                     }
                     LangStringToken::ClassAttribute(class) => {
                         data.added_classes.push(class.to_owned());
                     }
+                    _ => {}
                 }
             }
         };

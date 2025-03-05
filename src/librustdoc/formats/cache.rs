@@ -419,10 +419,10 @@ impl DocFolder for CacheBuilder<'_, '_> {
                 }
             }
 
-            if let Some(generics) = i.trait_.as_ref().and_then(|t| t.generics()) {
-                for bound in generics {
-                    dids.extend(bound.def_id(self.cache));
-                }
+            if let Some(trait_) = &i.trait_
+                && let Some(generics) = trait_.generics()
+            {
+                dids.extend(generics.into_iter().filter_map(|bound| bound.def_id(self.cache)));
             }
             let impl_item = Impl { impl_item: item };
             let impl_did = impl_item.def_id();

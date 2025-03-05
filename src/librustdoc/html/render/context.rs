@@ -247,7 +247,7 @@ impl<'tcx> Context<'tcx> {
                 resource_suffix: &self.shared.resource_suffix,
                 rust_logo: has_doc_flag(self.tcx(), LOCAL_CRATE.as_def_id(), sym::rust_logo),
             };
-            layout::render(
+            return layout::render(
                 &self.shared.layout,
                 &page,
                 BufDisplay(|buf: &mut String| {
@@ -255,47 +255,34 @@ impl<'tcx> Context<'tcx> {
                 }),
                 content,
                 &self.shared.style_files,
-            )
-        } else {
-            if let Some(&(ref names, ty)) = self.cache().paths.get(&it.item_id.expect_def_id()) {
-                if self.current.len() + 1 != names.len()
-                    || self.current.iter().zip(names.iter()).any(|(a, b)| a != b)
-                {
-                    // We checked that the redirection isn't pointing to the current file,
-                    // preventing an infinite redirection loop in the generated
-                    // documentation.
+            );
+        } else if let Some(&(ref names, ty)) = self.cache().paths.get(&it.item_id.expect_def_id())
+            && !self.current.split_last().is_some_and(|(_, current)| current == names)
+        {
+            // We checked that the redirection isn't pointing to the current file,
+            // preventing an infinite redirection loop in the generated
+            // documentation.
 
-                    let path = fmt::from_fn(|f| {
-                        for name in &names[..names.len() - 1] {
-                            write!(f, "{name}/")?;
-                        }
-                        write!(f, "{}", item_path(ty, names.last().unwrap().as_str()))
-                    });
-                    match self.shared.redirections {
-                        Some(ref redirections) => {
-                            let mut current_path = String::new();
-                            for name in &self.current {
-                                current_path.push_str(name.as_str());
-                                current_path.push('/');
-                            }
-                            let _ = write!(
-                                current_path,
-                                "{}",
-                                item_path(ty, names.last().unwrap().as_str())
-                            );
-                            redirections.borrow_mut().insert(current_path, path.to_string());
-                        }
-                        None => {
-                            return layout::redirect(&format!(
-                                "{root}{path}",
-                                root = self.root_path()
-                            ));
-                        }
-                    }
+            let (last, names) = names.split_last().unwrap();
+            let path = fmt::from_fn(|f| {
+                for name in names {
+                    write!(f, "{name}/")?;
                 }
+                write!(f, "{}", item_path(ty, last.as_str()))
+            });
+            let Some(redirections) = &self.shared.redirections else {
+                return layout::redirect(&format!("{root}{path}", root = self.root_path()));
+            };
+
+            let mut current_path = String::new();
+            for name in &self.current {
+                current_path.push_str(name.as_str());
+                current_path.push('/');
             }
-            String::new()
+            let _ = write!(current_path, "{}", item_path(ty, last.as_str()));
+            redirections.borrow_mut().insert(current_path, path.to_string());
         }
+        String::new()
     }
 
     /// Construct a map of items shown in the sidebar to a plain-text summary of their docs.

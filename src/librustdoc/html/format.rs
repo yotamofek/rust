@@ -1339,29 +1339,28 @@ impl clean::FnDecl {
 
         let last_input_index = self.inputs.values.len().checked_sub(1);
         for (i, input) in self.inputs.values.iter().enumerate() {
-            if let Some(selfty) = input.to_receiver() {
-                match selfty {
-                    clean::SelfTy => {
-                        write!(f, "self")?;
-                    }
-                    clean::BorrowedRef { lifetime, mutability, type_: box clean::SelfTy } => {
-                        write!(f, "{amp}")?;
-                        if let Some(lt) = lifetime {
-                            write!(f, "{lt} ", lt = lt.print())?;
-                        }
-                        write!(f, "{mutability}self", mutability = mutability.print_with_space())?;
-                    }
-                    _ => {
-                        write!(f, "self: ")?;
-                        selfty.print(cx).fmt(f)?;
-                    }
+            match input.to_receiver() {
+                Some(clean::SelfTy) => {
+                    f.write_str("self")?;
                 }
-            } else {
-                if input.is_const {
-                    write!(f, "const ")?;
+                Some(clean::BorrowedRef { lifetime, mutability, type_: box clean::SelfTy }) => {
+                    write!(f, "{amp}")?;
+                    if let Some(lt) = lifetime {
+                        write!(f, "{lt} ", lt = lt.print())?;
+                    }
+                    write!(f, "{mutability}self", mutability = mutability.print_with_space())?;
                 }
-                write!(f, "{}: ", input.name)?;
-                input.type_.print(cx).fmt(f)?;
+                Some(selfty) => {
+                    f.write_str("self: ")?;
+                    selfty.print(cx).fmt(f)?;
+                }
+                None => {
+                    if input.is_const {
+                        f.write_str("const ")?;
+                    }
+                    write!(f, "{}: ", input.name)?;
+                    input.type_.print(cx).fmt(f)?;
+                }
             }
             match (line_wrapping_indent, last_input_index) {
                 (_, None) => (),

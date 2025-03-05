@@ -1102,8 +1102,8 @@ fn string_without_closing_tag<T: Display>(
         });
     }
 
-    if let Some(href_context) = href_context {
-        if let Some(href) =
+    if let Some(href_context) = href_context
+        && let Some(href) =
             href_context.context.shared.span_correspondence_map.get(&def_span).and_then(|href| {
                 let context = href_context.context;
                 // FIXME: later on, it'd be nice to provide two links (if possible) for all items:
@@ -1134,21 +1134,20 @@ fn string_without_closing_tag<T: Display>(
                     }
                 }
             })
-        {
-            if !open_tag {
-                // We're already inside an element which has the same klass, no need to give it
-                // again.
+    {
+        if !open_tag {
+            // We're already inside an element which has the same klass, no need to give it
+            // again.
+            write!(out, "<a href=\"{href}\">{text_s}").unwrap();
+        } else {
+            let klass_s = klass.as_html();
+            if klass_s.is_empty() {
                 write!(out, "<a href=\"{href}\">{text_s}").unwrap();
             } else {
-                let klass_s = klass.as_html();
-                if klass_s.is_empty() {
-                    write!(out, "<a href=\"{href}\">{text_s}").unwrap();
-                } else {
-                    write!(out, "<a class=\"{klass_s}\" href=\"{href}\">{text_s}").unwrap();
-                }
+                write!(out, "<a class=\"{klass_s}\" href=\"{href}\">{text_s}").unwrap();
             }
-            return Some("</a>");
         }
+        return Some("</a>");
     }
     if !open_tag {
         write!(out, "{}", text_s).unwrap();
