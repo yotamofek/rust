@@ -193,13 +193,12 @@ impl<'tcx> TypeVariableTable<'_, 'tcx> {
     /// Returns indices of all variables that are not yet
     /// instantiated.
     pub(crate) fn unresolved_variables(&mut self) -> Vec<ty::TyVid> {
-        (0..self.num_vars())
-            .filter_map(|i| {
-                let vid = ty::TyVid::from_usize(i);
-                match self.probe(vid) {
-                    TypeVariableValue::Unknown { .. } => Some(vid),
-                    TypeVariableValue::Known { .. } => None,
-                }
+        self.storage
+            .values
+            .indices()
+            .filter_map(|vid| match self.probe(vid) {
+                TypeVariableValue::Unknown { .. } => Some(vid),
+                TypeVariableValue::Known { .. } => None,
             })
             .collect()
     }
