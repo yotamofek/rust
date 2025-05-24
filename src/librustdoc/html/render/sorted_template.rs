@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::{self, Write as _};
 use std::marker::PhantomData;
@@ -12,8 +13,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub(crate) struct SortedTemplate<F> {
     format: PhantomData<F>,
-    before: String,
-    after: String,
+    before: Cow<'static, str>,
+    after: Cow<'static, str>,
     fragments: BTreeSet<String>,
 }
 
@@ -38,14 +39,20 @@ impl<F> SortedTemplate<F> {
         if split.next().is_some() {
             return Err(Error("delimiter should appear at most once"));
         }
-        Ok(Self::from_before_after(before, after))
+        Ok(Self::from_before_after(before.to_string(), after.to_string()))
     }
 
     /// Template will insert fragments between `before` and `after`
-    pub(crate) fn from_before_after<S: ToString, T: ToString>(before: S, after: T) -> Self {
-        let before = before.to_string();
-        let after = after.to_string();
-        Self { format: PhantomData, before, after, fragments: Default::default() }
+    pub(crate) fn from_before_after(
+        before: impl Into<Cow<'static, str>>,
+        after: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        Self {
+            format: PhantomData,
+            before: before.into(),
+            after: after.into(),
+            fragments: Default::default(),
+        }
     }
 }
 
@@ -102,8 +109,8 @@ impl<F: FileFormat> FromStr for SortedTemplate<F> {
         }
         Ok(Self {
             format: PhantomData,
-            before: before.to_string(),
-            after: s.to_string(),
+            before: before.to_string().into(),
+            after: s.to_string().into(),
             fragments,
         })
     }
