@@ -13,6 +13,7 @@
 //!    --resource-suffix flag and are emitted when --emit-type is empty (default)
 //!    or contains "invocation-specific".
 
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::fs::File;
@@ -284,7 +285,7 @@ enum CrateInfoVersion {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(transparent)]
 struct PartsAndLocations<P> {
-    parts: Vec<(PathBuf, P)>,
+    parts: Vec<(Cow<'static, Path>, P)>,
 }
 
 impl<P> Default for PartsAndLocations<P> {
@@ -294,12 +295,12 @@ impl<P> Default for PartsAndLocations<P> {
 }
 
 impl<T, U> PartsAndLocations<Part<T, U>> {
-    fn push(&mut self, path: PathBuf, item: U) {
-        self.parts.push((path, Part { _artifact: PhantomData, item }));
+    fn push(&mut self, path: impl Into<Cow<'static, Path>>, item: U) {
+        self.parts.push((path.into(), Part { _artifact: PhantomData, item }));
     }
 
     /// Singleton part, one file
-    fn with(path: PathBuf, part: U) -> Self {
+    fn with(path: impl Into<Cow<'static, Path>>, part: U) -> Self {
         let mut ret = Self::default();
         ret.push(path, part);
         ret
@@ -452,7 +453,7 @@ impl CratesIndexPart {
                 "<li><a href=\"{trailing_slash}index.html\">{crate_name}</a></li>",
                 trailing_slash = ensure_trailing_slash(crate_name),
             );
-            ret.push(path.to_path_buf(), part);
+            ret.push(path, part);
         }
         Ok(ret)
     }
@@ -596,7 +597,6 @@ impl TypeAliasPart {
             cx,
         };
         DocVisitor::visit_crate(&mut type_impl_collector, krate);
-        let cx = type_impl_collector.cx;
         let aliased_types = type_impl_collector.aliased_types;
         for aliased_type in aliased_types.values() {
             let impls = aliased_type.impl_.values().filter_map(
@@ -608,7 +608,7 @@ impl TypeAliasPart {
                     for &(type_alias_fqp, type_alias_item) in type_aliases {
                         cx.id_map.borrow_mut().clear();
                         cx.deref_id_map.borrow_mut().clear();
-                        let type_alias_fqp = (*type_alias_fqp).iter().join("::");
+                        let type_alias_fqp = type_alias_fqp.iter().join("::");
                         if let Some(ret) = &mut ret {
                             ret.aliases.push(type_alias_fqp);
                         } else {
