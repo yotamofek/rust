@@ -178,7 +178,7 @@ fn is_glob_import(tcx: TyCtxt<'_>, import_id: LocalDefId) -> bool {
 }
 
 fn generate_item_with_correct_attrs(
-    cx: &mut DocContext<'_>,
+    cx: &DocContext<'_>,
     kind: ItemKind,
     def_id: DefId,
     name: Symbol,
@@ -198,7 +198,7 @@ fn generate_item_with_correct_attrs(
             || (is_glob_import(cx.tcx, import_id)
                 && (cx.render_options.document_hidden || !cx.tcx.is_doc_hidden(def_id)));
         let mut attrs = get_all_import_attributes(cx, import_id, def_id, is_inline);
-        add_without_unwanted_attributes(&mut attrs, target_attrs, is_inline, None);
+        attrs.extend(add_without_unwanted_attributes(target_attrs, is_inline, None));
         attrs
     } else {
         // We only keep the item's attributes.
@@ -2622,7 +2622,7 @@ pub(crate) fn reexport_chain(
 
 /// Collect attributes from the whole import chain.
 fn get_all_import_attributes<'hir>(
-    cx: &mut DocContext<'hir>,
+    cx: &DocContext<'hir>,
     import_def_id: LocalDefId,
     target_def_id: DefId,
     is_inline: bool,
@@ -2640,7 +2640,7 @@ fn get_all_import_attributes<'hir>(
             first = false;
         // We don't add attributes of an intermediate re-export if it has `#[doc(hidden)]`.
         } else if cx.render_options.document_hidden || !cx.tcx.is_doc_hidden(def_id) {
-            add_without_unwanted_attributes(&mut attrs, import_attrs, is_inline, Some(def_id));
+            attrs.extend(add_without_unwanted_attributes(import_attrs, is_inline, Some(def_id)));
         }
     }
     attrs
@@ -2724,34 +2724,32 @@ fn filter_doc_attr(args: &mut hir::AttrArgs, is_inline: bool) {
 /// * `doc(no_inline)`
 /// * `doc(hidden)`
 fn add_without_unwanted_attributes<'hir>(
-    attrs: &mut Vec<(Cow<'hir, hir::Attribute>, Option<DefId>)>,
     new_attrs: &'hir [hir::Attribute],
     is_inline: bool,
     import_parent: Option<DefId>,
-) {
-    for attr in new_attrs {
+) -> impl Iterator<Item = (Cow<'hir, hir::Attribute>, Option<DefId>)> {
+    new_attrs.iter().filter_map(move |attr| {
         if attr.is_doc_comment() {
-            attrs.push((Cow::Borrowed(attr), import_parent));
-            continue;
+            return Some((Cow::Borrowed(attr), import_parent));
         }
-        let mut attr = attr.clone();
         match attr {
-            hir::Attribute::Unparsed(ref mut normal) if let [ident] = &*normal.path.segments => {
+            hir::Attribute::Unparsed(normal) if let [ident] = &*normal.path.segments => {
                 let ident = ident.name;
                 if ident == sym::doc {
+                    let mut normal = normal.clone();
                     filter_doc_attr(&mut normal.args, is_inline);
-                    attrs.push((Cow::Owned(attr), import_parent));
+                    Some((Cow::Owned(hir::Attribute::Unparsed(normal)), import_parent))
                 } else if is_inline || ident != sym::cfg_trace {
                     // If it's not a `cfg()` attribute, we keep it.
-                    attrs.push((Cow::Owned(attr), import_parent));
+                    Some((Cow::Borrowed(attr), import_parent))
+                } else {
+                    None
                 }
             }
-            hir::Attribute::Parsed(..) if is_inline => {
-                attrs.push((Cow::Owned(attr), import_parent));
-            }
-            _ => {}
+            hir::Attribute::Parsed(..) if is_inline => Some((Cow::Borrowed(attr), import_parent)),
+            _ => None,
         }
-    }
+    })
 }
 
 fn clean_maybe_renamed_item<'tcx>(
