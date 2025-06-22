@@ -129,15 +129,19 @@ pub(crate) fn clean_doc_module<'tcx>(doc: &DocModule<'tcx>, cx: &mut DocContext<
             _ => unreachable!(),
         }
     }));
-    items.extend(doc.items.values().flat_map(|(item, renamed, _)| {
+    for (item, renamed, _) in doc.items.values() {
         // Now we actually lower the imports, skipping everything else.
         if let hir::ItemKind::Use(path, hir::UseKind::Glob) = item.kind {
-            clean_use_statement(item, *renamed, path, hir::UseKind::Glob, cx, &mut inserted)
-        } else {
-            // skip everything else
-            Vec::new()
+            items.extend(clean_use_statement(
+                item,
+                *renamed,
+                path,
+                hir::UseKind::Glob,
+                cx,
+                &mut inserted,
+            ));
         }
-    }));
+    }
 
     // determine if we should display the inner contents or
     // the outer `mod` item for the source code.
@@ -273,7 +277,7 @@ fn clean_poly_trait_ref_with_constraints<'tcx>(
     GenericBound::TraitBound(
         PolyTrait {
             trait_: clean_trait_ref_with_constraints(cx, poly_trait_ref, constraints),
-            generic_params: clean_bound_vars(poly_trait_ref.bound_vars()),
+            generic_params: clean_bound_vars(poly_trait_ref.bound_vars()).collect(),
         },
         hir::TraitBoundModifiers::NONE,
     )
@@ -2064,7 +2068,7 @@ pub(crate) fn clean_middle_ty<'tcx>(
             // FIXME: should we merge the outer and inner binders somehow?
             let sig = bound_ty.skip_binder().fn_sig(cx.tcx);
             let decl = clean_poly_fn_sig(cx, None, sig);
-            let generic_params = clean_bound_vars(sig.bound_vars());
+            let generic_params = clean_bound_vars(sig.bound_vars()).collect();
 
             BareFunction(Box::new(BareFunctionDecl {
                 safety: sig.safety(),
@@ -2074,7 +2078,7 @@ pub(crate) fn clean_middle_ty<'tcx>(
             }))
         }
         ty::UnsafeBinder(inner) => {
-            let generic_params = clean_bound_vars(inner.bound_vars());
+            let generic_params = clean_bound_vars(inner.bound_vars()).collect();
             let ty = clean_middle_ty(inner.into(), cx, None, None);
             UnsafeBinder(Box::new(UnsafeBinderTy { generic_params, ty }))
         }
@@ -2784,7 +2788,8 @@ fn clean_maybe_renamed_item<'tcx>(
                     kind,
                     cx,
                     &mut FxHashSet::default(),
-                );
+                )
+                .collect();
             }
             _ => {}
         }
@@ -3000,14 +3005,12 @@ fn clean_use_statement<'tcx>(
     kind: hir::UseKind,
     cx: &mut DocContext<'tcx>,
     inlined_names: &mut FxHashSet<(ItemType, Symbol)>,
-) -> Vec<Item> {
-    let mut items = Vec::new();
+) -> impl Iterator<Item = Item> {
     let hir::UsePath { segments, ref res, span } = *path;
-    for res in res.present_items() {
+    res.present_items().flat_map(move |res| {
         let path = hir::Path { segments, res, span };
-        items.append(&mut clean_use_statement_inner(import, name, &path, kind, cx, inlined_names));
-    }
-    items
+        clean_use_statement_inner(import, name, &path, kind, cx, inlined_names)
+    })
 }
 
 fn clean_use_statement_inner<'tcx>(
@@ -3178,29 +3181,26 @@ fn clean_assoc_item_constraint<'tcx>(
     }
 }
 
-fn clean_bound_vars(bound_vars: &ty::List<ty::BoundVariableKind>) -> Vec<GenericParamDef> {
-    bound_vars
-        .into_iter()
-        .filter_map(|var| match var {
-            ty::BoundVariableKind::Region(ty::BoundRegionKind::Named(def_id, name))
-                if name != kw::UnderscoreLifetime =>
-            {
-                Some(GenericParamDef::lifetime(def_id, name))
-            }
-            ty::BoundVariableKind::Ty(ty::BoundTyKind::Param(def_id, name)) => {
-                Some(GenericParamDef {
-                    name,
-                    def_id,
-                    kind: GenericParamDefKind::Type {
-                        bounds: ThinVec::new(),
-                        default: None,
-                        synthetic: false,
-                    },
-                })
-            }
-            // FIXME(non_lifetime_binders): Support higher-ranked const parameters.
-            ty::BoundVariableKind::Const => None,
-            _ => None,
-        })
-        .collect()
+fn clean_bound_vars(
+    bound_vars: &ty::List<ty::BoundVariableKind>,
+) -> impl Iterator<Item = GenericParamDef> {
+    bound_vars.into_iter().filter_map(|var| match var {
+        ty::BoundVariableKind::Region(ty::BoundRegionKind::Named(def_id, name))
+            if name != kw::UnderscoreLifetime =>
+        {
+            Some(GenericParamDef::lifetime(def_id, name))
+        }
+        ty::BoundVariableKind::Ty(ty::BoundTyKind::Param(def_id, name)) => Some(GenericParamDef {
+            name,
+            def_id,
+            kind: GenericParamDefKind::Type {
+                bounds: ThinVec::new(),
+                default: None,
+                synthetic: false,
+            },
+        }),
+        // FIXME(non_lifetime_binders): Support higher-ranked const parameters.
+        ty::BoundVariableKind::Const => None,
+        _ => None,
+    })
 }

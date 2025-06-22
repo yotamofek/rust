@@ -746,39 +746,39 @@ impl Item {
         Some(tcx.visibility(def_id))
     }
 
-    pub(crate) fn attributes_without_repr(&self, tcx: TyCtxt<'_>, is_json: bool) -> Vec<String> {
+    pub(crate) fn attributes_without_repr(
+        &self,
+        tcx: TyCtxt<'_>,
+        is_json: bool,
+    ) -> impl Iterator<Item = String> {
         const ALLOWED_ATTRIBUTES: &[Symbol] =
             &[sym::export_name, sym::link_section, sym::no_mangle, sym::non_exhaustive];
 
-        self.attrs
-            .other_attrs
-            .iter()
-            .filter_map(|attr| {
-                if is_json {
-                    match attr {
-                        // rustdoc-json stores this in `Item::deprecation`, so we
-                        // don't want it it `Item::attrs`.
-                        hir::Attribute::Parsed(AttributeKind::Deprecation { .. }) => None,
-                        // We have separate pretty-printing logic for `#[repr(..)]` attributes.
-                        hir::Attribute::Parsed(AttributeKind::Repr(..)) => None,
-                        _ => Some({
-                            let mut s = rustc_hir_pretty::attribute_to_string(&tcx, attr);
-                            assert_eq!(s.pop(), Some('\n'));
-                            s
-                        }),
-                    }
-                } else if attr.has_any_name(ALLOWED_ATTRIBUTES) {
-                    Some(
-                        rustc_hir_pretty::attribute_to_string(&tcx, attr)
-                            .replace("\\\n", "")
-                            .replace('\n', "")
-                            .replace("  ", " "),
-                    )
-                } else {
-                    None
+        self.attrs.other_attrs.iter().filter_map(move |attr| {
+            if is_json {
+                match attr {
+                    // rustdoc-json stores this in `Item::deprecation`, so we
+                    // don't want it it `Item::attrs`.
+                    hir::Attribute::Parsed(AttributeKind::Deprecation { .. }) => None,
+                    // We have separate pretty-printing logic for `#[repr(..)]` attributes.
+                    hir::Attribute::Parsed(AttributeKind::Repr(..)) => None,
+                    _ => Some({
+                        let mut s = rustc_hir_pretty::attribute_to_string(&tcx, attr);
+                        assert_eq!(s.pop(), Some('\n'));
+                        s
+                    }),
                 }
-            })
-            .collect()
+            } else if attr.has_any_name(ALLOWED_ATTRIBUTES) {
+                Some(
+                    rustc_hir_pretty::attribute_to_string(&tcx, attr)
+                        .replace("\\\n", "")
+                        .replace('\n', "")
+                        .replace("  ", " "),
+                )
+            } else {
+                None
+            }
+        })
     }
 
     pub(crate) fn attributes_and_repr(
@@ -786,13 +786,14 @@ impl Item {
         tcx: TyCtxt<'_>,
         cache: &Cache,
         is_json: bool,
-    ) -> Vec<String> {
-        let mut attrs = self.attributes_without_repr(tcx, is_json);
+    ) -> impl Iterator<Item = String> {
+        let attrs = self.attributes_without_repr(tcx, is_json);
 
-        if let Some(repr_attr) = self.repr(tcx, cache, is_json) {
-            attrs.push(repr_attr);
-        }
-        attrs
+        attrs.chain(if let Some(repr_attr) = self.repr(tcx, cache, is_json) {
+            Some(repr_attr)
+        } else {
+            None
+        })
     }
 
     /// Returns a stringified `#[repr(...)]` attribute.

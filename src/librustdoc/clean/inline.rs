@@ -293,7 +293,7 @@ pub(super) fn build_function(cx: &mut DocContext<'_>, def_id: DefId) -> Box<clea
     let sig = cx.tcx.fn_sig(def_id).instantiate_identity();
     // The generics need to be cleaned before the signature.
     let mut generics = clean_ty_generics(cx, def_id);
-    let bound_vars = clean_bound_vars(sig.bound_vars());
+    let mut bound_vars = clean_bound_vars(sig.bound_vars()).peekable();
 
     // At the time of writing early & late-bound params are stored separately in rustc,
     // namely in `generics.params` and `bound_vars` respectively.
@@ -305,7 +305,7 @@ pub(super) fn build_function(cx: &mut DocContext<'_>, def_id: DefId) -> Box<clea
     // * https://rustc-dev-guide.rust-lang.org/bound-vars-and-params.html
     // * https://rustc-dev-guide.rust-lang.org/what-does-early-late-bound-mean.html
     let has_early_bound_params = !generics.params.is_empty();
-    let has_late_bound_params = !bound_vars.is_empty();
+    let has_late_bound_params = bound_vars.peek().is_some();
     generics.params.extend(bound_vars);
     if has_early_bound_params && has_late_bound_params {
         // If this ever becomes a performances bottleneck either due to the sorting
