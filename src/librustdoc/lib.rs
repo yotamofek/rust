@@ -3,8 +3,8 @@
     html_playground_url = "https://play.rust-lang.org/"
 )]
 #![feature(rustc_private)]
-#![feature(ascii_char)]
 #![feature(ascii_char_variants)]
+#![feature(ascii_char)]
 #![feature(assert_matches)]
 #![feature(box_patterns)]
 #![feature(debug_closure_helpers)]
@@ -15,6 +15,7 @@
 #![feature(iter_intersperse)]
 #![feature(never_type)]
 #![feature(round_char_boundary)]
+#![feature(specialization)]
 #![feature(test)]
 #![feature(type_alias_impl_trait)]
 #![feature(type_ascription)]
@@ -23,6 +24,7 @@
 #![allow(clippy::collapsible_if, clippy::collapsible_else_if)]
 #![allow(rustc::diagnostic_outside_of_impl)]
 #![allow(rustc::untranslatable_diagnostic)]
+#![allow(incomplete_features)]
 
 extern crate thin_vec;
 

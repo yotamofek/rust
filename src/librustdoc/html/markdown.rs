@@ -21,13 +21,14 @@
 //!     playground: &None,
 //!     heading_offset: HeadingOffset::H2,
 //! };
-//! let html = md.into_string();
+//! let mut html = String::new();
+//! md.write_into(&mut html).unwrap();
 //! // ... something using html
 //! ```
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::fmt::Write;
+use std::fmt::{self, Write};
 use std::iter::Peekable;
 use std::ops::{ControlFlow, Range};
 use std::path::PathBuf;
@@ -1328,16 +1329,31 @@ impl LangString {
 }
 
 impl<'a> Markdown<'a> {
-    pub fn into_string(self) -> String {
+    pub fn write_into(self, mut f: impl fmt::Write) -> fmt::Result {
         // This is actually common enough to special-case
         if self.content.is_empty() {
-            return String::new();
+            return Ok(());
         }
 
-        let mut s = String::with_capacity(self.content.len() * 3 / 2);
-        html::push_html(&mut s, self.into_iter());
+        trait WriteSpec {
+            fn reserve_spec(&mut self, additional: usize);
+        }
 
-        s
+        impl<W: fmt::Write> WriteSpec for W {
+            #[inline]
+            default fn reserve_spec(&mut self, _additional: usize) {}
+        }
+
+        impl<'a> WriteSpec for &'a mut String {
+            #[inline]
+            fn reserve_spec(&mut self, additional: usize) {
+                self.reserve(additional);
+            }
+        }
+
+        f.reserve_spec(self.content.len() * 3 / 2);
+
+        html::write_html_fmt(f, self.into_iter())
     }
 
     fn into_iter(self) -> CodeBlocks<'a, 'a, impl Iterator<Item = Event<'a>>> {
@@ -1453,9 +1469,10 @@ impl MarkdownWithToc<'_> {
 
         (toc.into_toc(), s)
     }
-    pub(crate) fn into_string(self) -> String {
+
+    pub(crate) fn write_into(self, mut f: impl fmt::Write) -> fmt::Result {
         let (toc, s) = self.into_parts();
-        format!("<nav id=\"rustdoc\">{toc}</nav>{s}", toc = toc.print())
+        write!(f, "<nav id=\"rustdoc\">{toc}</nav>{s}", toc = toc.print())
     }
 }
 

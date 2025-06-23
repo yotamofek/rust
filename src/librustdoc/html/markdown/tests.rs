@@ -297,7 +297,8 @@ fn test_lang_string_tokenizer() {
 fn test_header() {
     fn t(input: &str, expect: &str) {
         let mut map = IdMap::new();
-        let output = Markdown {
+        let mut output = String::new();
+        Markdown {
             content: input,
             links: &[],
             ids: &mut map,
@@ -306,7 +307,8 @@ fn test_header() {
             playground: &None,
             heading_offset: HeadingOffset::H2,
         }
-        .into_string();
+        .write_into(&mut output)
+        .unwrap();
         assert_eq!(output, expect, "original: {}", input);
     }
 
@@ -348,7 +350,8 @@ fn test_header() {
 fn test_header_ids_multiple_blocks() {
     let mut map = IdMap::new();
     fn t(map: &mut IdMap, input: &str, expect: &str) {
-        let output = Markdown {
+        let mut output = String::new();
+        Markdown {
             content: input,
             links: &[],
             ids: map,
@@ -357,7 +360,8 @@ fn test_header_ids_multiple_blocks() {
             playground: &None,
             heading_offset: HeadingOffset::H2,
         }
-        .into_string();
+        .write_into(&mut output)
+        .unwrap();
         assert_eq!(output, expect, "original: {}", input);
     }
 
@@ -496,7 +500,8 @@ fn test_find_testable_code_line() {
 fn test_ascii_with_prepending_hashtag() {
     fn t(input: &str, expect: &str) {
         let mut map = IdMap::new();
-        let output = Markdown {
+        let mut output = String::new();
+        Markdown {
             content: input,
             links: &[],
             ids: &mut map,
@@ -505,7 +510,8 @@ fn test_ascii_with_prepending_hashtag() {
             playground: &None,
             heading_offset: HeadingOffset::H2,
         }
-        .into_string();
+        .write_into(&mut output)
+        .unwrap();
         assert_eq!(output, expect, "original: {}", input);
     }
 
