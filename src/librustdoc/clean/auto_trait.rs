@@ -196,7 +196,7 @@ fn clean_param_env<'tcx>(
                 }
             })
         })
-        .flat_map(|pred| clean_predicate(pred, cx))
+        .filter_map(|pred| clean_predicate(pred, cx))
         .chain(clean_region_outlives_constraints(&region_data, generics))
         .collect();
 
@@ -220,7 +220,7 @@ fn clean_param_env<'tcx>(
 fn clean_region_outlives_constraints<'tcx>(
     regions: &RegionConstraintData<'tcx>,
     generics: &'tcx ty::Generics,
-) -> ThinVec<clean::WherePredicate> {
+) -> impl Iterator<Item = clean::WherePredicate> {
     // Our goal is to "flatten" the list of constraints by eliminating all intermediate
     // `RegionVids` (region inference variables). At the end, all constraints should be
     // between `Region`s. This gives us the information we need to create the where-predicates.
@@ -336,29 +336,23 @@ fn clean_region_outlives_constraints<'tcx>(
         })
         .collect();
 
-    region_params
-        .iter()
-        .filter_map(|&name| {
-            let bounds: FxIndexSet<_> = outlives_predicates
-                .get(&name)?
-                .iter()
-                .map(|&region| {
-                    let lifetime = early_bound_region_name(region)
-                        .inspect(|name| assert!(region_params.contains(name)))
-                        .map(Lifetime)
-                        .unwrap_or(Lifetime::statik());
-                    clean::GenericBound::Outlives(lifetime)
-                })
-                .collect();
-            if bounds.is_empty() {
-                return None;
-            }
-            Some(clean::WherePredicate::RegionPredicate {
-                lifetime: Lifetime(name),
-                bounds: bounds.into_iter().collect(),
+    region_params.clone().into_iter().filter_map(move |name| {
+        let bounds: Vec<_> = outlives_predicates
+            .get(&name)?
+            .iter()
+            .map(|&region| {
+                let lifetime = early_bound_region_name(region)
+                    .inspect(|name| assert!(region_params.contains(name)))
+                    .map(Lifetime)
+                    .unwrap_or(Lifetime::statik());
+                clean::GenericBound::Outlives(lifetime)
             })
-        })
-        .collect()
+            .collect();
+        if bounds.is_empty() {
+            return None;
+        }
+        Some(clean::WherePredicate::RegionPredicate { lifetime: Lifetime(name), bounds })
+    })
 }
 
 fn early_bound_region_name(region: Region<'_>) -> Option<Symbol> {

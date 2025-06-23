@@ -475,7 +475,7 @@ pub(crate) fn resolve_type(cx: &mut DocContext<'_>, path: Path) -> Type {
 pub(crate) fn synthesize_auto_trait_and_blanket_impls(
     cx: &mut DocContext<'_>,
     item_def_id: DefId,
-) -> impl Iterator<Item = Item> + use<> {
+) -> impl Iterator<Item = Item> {
     let auto_impls = cx
         .sess()
         .prof

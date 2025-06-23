@@ -20,7 +20,10 @@ use crate::clean;
 use crate::clean::{GenericArgs as PP, WherePredicate as WP};
 use crate::core::DocContext;
 
-pub(crate) fn where_clauses(cx: &DocContext<'_>, clauses: ThinVec<WP>) -> ThinVec<WP> {
+pub(crate) fn where_clauses(
+    cx: &DocContext<'_>,
+    clauses: impl IntoIterator<Item = WP>,
+) -> ThinVec<WP> {
     // First, partition the where clause into its separate components.
     //
     // We use `FxIndexMap` so that the insertion order is preserved to prevent messing up to

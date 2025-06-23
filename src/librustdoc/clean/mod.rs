@@ -36,7 +36,7 @@ use std::mem;
 
 use rustc_ast::token::{Token, TokenKind};
 use rustc_ast::tokenstream::{TokenStream, TokenTree};
-use rustc_data_structures::fx::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet, IndexEntry};
+use rustc_data_structures::fx::{FxHashMap, FxHashSet, FxIndexMap, IndexEntry};
 use rustc_errors::codes::*;
 use rustc_errors::{FatalError, struct_span_code_err};
 use rustc_hir::def::{CtorKind, DefKind, Res};
@@ -924,7 +924,7 @@ fn clean_ty_generics_inner<'tcx>(
     // Now that `cx.impl_trait_bounds` is populated, we can process
     // remaining predicates which could contain `impl Trait`.
     let where_predicates =
-        where_predicates.into_iter().flat_map(|p| clean_predicate(*p, cx)).collect();
+        where_predicates.into_iter().filter_map(|p| clean_predicate(*p, cx)).collect();
 
     let mut generics = Generics { params, where_predicates };
     simplify::sized_bounds(cx, &mut generics);
@@ -2148,19 +2148,16 @@ pub(crate) fn clean_middle_ty<'tcx>(
                 })
                 .collect();
 
-            let late_bound_regions: FxIndexSet<_> = obj
-                .iter()
-                .flat_map(|pred| pred.bound_vars())
-                .filter_map(|var| match var {
+            let late_bound_regions =
+                obj.iter().flat_map(|pred| pred.bound_vars()).filter_map(|var| match var {
                     ty::BoundVariableKind::Region(ty::BoundRegionKind::Named(def_id, name))
                         if name != kw::UnderscoreLifetime =>
                     {
                         Some(GenericParamDef::lifetime(def_id, name))
                     }
                     _ => None,
-                })
-                .collect();
-            let late_bound_regions = late_bound_regions.into_iter().collect();
+                });
+            let late_bound_regions = late_bound_regions.collect();
 
             let path = clean_middle_path(cx, did, false, constraints, args);
             bounds.insert(0, PolyTrait { trait_: path, generic_params: late_bound_regions });
@@ -2273,14 +2270,10 @@ fn clean_middle_opaque_bounds<'tcx>(
 ) -> Type {
     let mut has_sized = false;
 
-    let bounds: Vec<_> = cx
-        .tcx
-        .explicit_item_bounds(impl_trait_def_id)
-        .iter_instantiated_copied(cx.tcx, args)
-        .collect();
+    let bounds = cx.tcx.explicit_item_bounds(impl_trait_def_id);
 
     let mut bounds = bounds
-        .iter()
+        .iter_instantiated_copied(cx.tcx, args)
         .filter_map(|(bound, _)| {
             let bound_predicate = bound.kind();
             let trait_ref = match bound_predicate.skip_binder() {
@@ -2304,8 +2297,8 @@ fn clean_middle_opaque_bounds<'tcx>(
                 return None;
             }
 
-            let bindings: ThinVec<_> = bounds
-                .iter()
+            let bindings = bounds
+                .iter_instantiated_copied(cx.tcx, args)
                 .filter_map(|(bound, _)| {
                     let bound = bound.kind();
                     if let ty::ClauseKind::Projection(proj_pred) = bound.skip_binder()

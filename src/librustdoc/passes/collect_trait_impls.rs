@@ -124,8 +124,13 @@ pub(crate) fn collect_trait_impls(mut krate: Crate, cx: &mut DocContext<'_>) -> 
                         _ => true,
                     }
                 }) {
-                    let impls = synthesize_auto_trait_and_blanket_impls(cx, def_id);
-                    new_items_external.extend(impls.filter(|i| cx.inlined.insert(i.item_id)));
+                    let impls =
+                        synthesize_auto_trait_and_blanket_impls(cx, def_id).collect::<Vec<_>>();
+                    for item in impls {
+                        if cx.inlined.insert(item.item_id) {
+                            new_items_external.push(item);
+                        }
+                    }
                 }
             }
         }

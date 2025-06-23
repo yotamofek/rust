@@ -149,7 +149,7 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
             }
         }
 
-        self.cx.cache.hidden_cfg = self
+        for attr in self
             .cx
             .tcx
             .hir_attrs(CRATE_HIR_ID)
@@ -157,23 +157,17 @@ impl<'a, 'tcx> RustdocVisitor<'a, 'tcx> {
             .filter(|attr| attr.has_name(sym::doc))
             .flat_map(|attr| attr.meta_item_list().into_iter().flatten())
             .filter(|attr| attr.has_name(sym::cfg_hide))
-            .flat_map(|attr| {
-                attr.meta_item_list()
-                    .unwrap_or(&[])
-                    .iter()
-                    .filter_map(|attr| {
-                        Cfg::parse(attr)
-                            .map_err(|e| self.cx.sess().dcx().span_err(e.span, e.msg))
-                            .ok()
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .chain([
-                Cfg::Cfg(sym::test, None),
-                Cfg::Cfg(sym::doc, None),
-                Cfg::Cfg(sym::doctest, None),
-            ])
-            .collect();
+        {
+            let Some(meta_item_list) = attr.meta_item_list() else { continue };
+            self.cx.cache.hidden_cfg.extend(meta_item_list.iter().filter_map(|attr| {
+                Cfg::parse(attr).map_err(|e| self.cx.tcx.sess.dcx().span_err(e.span, e.msg)).ok()
+            }))
+        }
+        self.cx.cache.hidden_cfg.extend([
+            Cfg::Cfg(sym::test, None),
+            Cfg::Cfg(sym::doc, None),
+            Cfg::Cfg(sym::doctest, None),
+        ]);
 
         self.cx.cache.exact_paths = self.exact_paths;
         top_level_module
