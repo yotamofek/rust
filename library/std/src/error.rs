@@ -496,10 +496,10 @@ where
             }
         }
 
-        if self.show_backtrace {
-            if let Some(backtrace) = self.backtrace() {
-                write!(f, "\n\nStack backtrace:\n{}", backtrace.to_string().trim_end())?;
-            }
+        if self.show_backtrace
+            && let Some(backtrace) = self.backtrace()
+        {
+            write!(f, "\n\nStack backtrace:\n{}", backtrace.to_string().trim_end())?;
         }
 
         Ok(())

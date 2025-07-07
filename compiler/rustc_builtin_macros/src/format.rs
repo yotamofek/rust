@@ -679,12 +679,12 @@ fn report_missing_placeholders(
         })
         .collect::<Vec<_>>();
 
-    if !placeholders.is_empty() {
-        if let Some(new_diag) = report_redundant_format_arguments(ecx, args, used, placeholders) {
-            diag.cancel();
-            new_diag.emit();
-            return;
-        }
+    if !placeholders.is_empty()
+        && let Some(new_diag) = report_redundant_format_arguments(ecx, args, used, placeholders)
+    {
+        diag.cancel();
+        new_diag.emit();
+        return;
     }
 
     // Used to ensure we only report translations for *one* kind of foreign format.

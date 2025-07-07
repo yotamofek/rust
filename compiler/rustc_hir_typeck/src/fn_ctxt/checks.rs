@@ -1093,10 +1093,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 )
             };
 
-            if !remove_idx_is_perfect(provided_idx.as_usize()) {
-                if let Some(i) = (0..provided_args.len()).find(|&i| remove_idx_is_perfect(i)) {
-                    errors = vec![Error::Extra(ProvidedIdx::from_usize(i))];
-                }
+            if !remove_idx_is_perfect(provided_idx.as_usize())
+                && let Some(i) = (0..provided_args.len()).find(|&i| remove_idx_is_perfect(i))
+            {
+                errors = vec![Error::Extra(ProvidedIdx::from_usize(i))];
             }
         }
 
@@ -2118,18 +2118,18 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             )
         };
 
-        if let hir::ExprKind::If(_, _, Some(el)) = expr.kind {
-            if let Some(rslt) = check_in_progress(el) {
-                return rslt;
-            }
+        if let hir::ExprKind::If(_, _, Some(el)) = expr.kind
+            && let Some(rslt) = check_in_progress(el)
+        {
+            return rslt;
         }
 
         if let hir::ExprKind::Match(_, arms, _) = expr.kind {
             let mut iter = arms.iter().filter_map(|arm| check_in_progress(arm.body));
-            if let Some(span) = iter.next() {
-                if iter.next().is_none() {
-                    return span;
-                }
+            if let Some(span) = iter.next()
+                && iter.next().is_none()
+            {
+                return span;
             }
         }
 

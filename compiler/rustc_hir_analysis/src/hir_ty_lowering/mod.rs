@@ -547,10 +547,10 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             ) -> ty::GenericArg<'tcx> {
                 let tcx = self.lowerer.tcx();
 
-                if let Err(incorrect) = self.incorrect_args {
-                    if incorrect.invalid_args.contains(&(param.index as usize)) {
-                        return param.to_error(tcx);
-                    }
+                if let Err(incorrect) = self.incorrect_args
+                    && incorrect.invalid_args.contains(&(param.index as usize))
+                {
+                    return param.to_error(tcx);
                 }
 
                 let handle_ty_args = |has_default, ty: &hir::Ty<'tcx>| {
@@ -610,10 +610,10 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             ) -> ty::GenericArg<'tcx> {
                 let tcx = self.lowerer.tcx();
 
-                if let Err(incorrect) = self.incorrect_args {
-                    if incorrect.invalid_args.contains(&(param.index as usize)) {
-                        return param.to_error(tcx);
-                    }
+                if let Err(incorrect) = self.incorrect_args
+                    && incorrect.invalid_args.contains(&(param.index as usize))
+                {
+                    return param.to_error(tcx);
                 }
                 match param.kind {
                     GenericParamDefKind::Lifetime => {

@@ -549,15 +549,15 @@ impl MacResult for MacEager {
         if let Some(p) = self.pat {
             return Some(p);
         }
-        if let Some(e) = self.expr {
-            if matches!(e.kind, ast::ExprKind::Lit(_) | ast::ExprKind::IncludedBytes(_)) {
-                return Some(P(ast::Pat {
-                    id: ast::DUMMY_NODE_ID,
-                    span: e.span,
-                    kind: PatKind::Expr(e),
-                    tokens: None,
-                }));
-            }
+        if let Some(e) = self.expr
+            && matches!(e.kind, ast::ExprKind::Lit(_) | ast::ExprKind::IncludedBytes(_))
+        {
+            return Some(P(ast::Pat {
+                id: ast::DUMMY_NODE_ID,
+                span: e.span,
+                kind: PatKind::Expr(e),
+                tokens: None,
+            }));
         }
         None
     }

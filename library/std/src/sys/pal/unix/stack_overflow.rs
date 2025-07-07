@@ -235,11 +235,9 @@ mod imp {
             return Handler::null();
         }
 
-        if !main_thread {
-            if let Some(guard_page_range) = unsafe { current_guard() } {
-                let thread_name = with_current_name(|name| name.map(Box::from));
-                set_current_info(guard_page_range, thread_name);
-            }
+        if !main_thread && let Some(guard_page_range) = unsafe { current_guard() } {
+            let thread_name = with_current_name(|name| name.map(Box::from));
+            set_current_info(guard_page_range, thread_name);
         }
 
         // SAFETY: assuming stack_t is zero-initializable

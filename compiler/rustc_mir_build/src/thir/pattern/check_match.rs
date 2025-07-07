@@ -921,10 +921,10 @@ fn check_never_pattern<'tcx>(
     cx: &PatCtxt<'_, 'tcx>,
     pat: &Pat<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
-    if let PatKind::Never = pat.kind {
-        if !cx.is_uninhabited(pat.ty) {
-            return Err(cx.tcx.dcx().emit_err(NonEmptyNeverPattern { span: pat.span, ty: pat.ty }));
-        }
+    if let PatKind::Never = pat.kind
+        && !cx.is_uninhabited(pat.ty)
+    {
+        return Err(cx.tcx.dcx().emit_err(NonEmptyNeverPattern { span: pat.span, ty: pat.ty }));
     }
     Ok(())
 }
@@ -1146,22 +1146,20 @@ fn find_fallback_pattern_typo<'tcx>(
             for (_, node) in cx.tcx.hir_parent_iter(hir_id) {
                 match node {
                     hir::Node::Stmt(hir::Stmt { kind: hir::StmtKind::Let(let_stmt), .. }) => {
-                        if let hir::PatKind::Binding(_, _, binding_name, _) = let_stmt.pat.kind {
-                            if name == binding_name.name {
-                                lint.pattern_let_binding = Some(binding_name.span);
-                            }
+                        if let hir::PatKind::Binding(_, _, binding_name, _) = let_stmt.pat.kind
+                            && name == binding_name.name
+                        {
+                            lint.pattern_let_binding = Some(binding_name.span);
                         }
                     }
                     hir::Node::Block(hir::Block { stmts, .. }) => {
                         for stmt in *stmts {
-                            if let hir::StmtKind::Let(let_stmt) = stmt.kind {
-                                if let hir::PatKind::Binding(_, _, binding_name, _) =
+                            if let hir::StmtKind::Let(let_stmt) = stmt.kind
+                                && let hir::PatKind::Binding(_, _, binding_name, _) =
                                     let_stmt.pat.kind
-                                {
-                                    if name == binding_name.name {
-                                        lint.pattern_let_binding = Some(binding_name.span);
-                                    }
-                                }
+                                && name == binding_name.name
+                            {
+                                lint.pattern_let_binding = Some(binding_name.span);
                             }
                         }
                     }
@@ -1297,10 +1295,10 @@ fn report_non_exhaustive_match<'p, 'tcx>(
         }
     }
 
-    if let ty::Ref(_, sub_ty, _) = scrut_ty.kind() {
-        if !sub_ty.is_inhabited_from(cx.tcx, cx.module, cx.typing_env) {
-            err.note("references are always considered inhabited");
-        }
+    if let ty::Ref(_, sub_ty, _) = scrut_ty.kind()
+        && !sub_ty.is_inhabited_from(cx.tcx, cx.module, cx.typing_env)
+    {
+        err.note("references are always considered inhabited");
     }
 
     for &arm in arms {
@@ -1477,11 +1475,11 @@ fn collect_special_tys<'tcx>(
     if matches!(pat.ctor(), Constructor::NonExhaustive | Constructor::Never) {
         special_tys.insert(*pat.ty());
     }
-    if let Constructor::IntRange(range) = pat.ctor() {
-        if cx.is_range_beyond_boundaries(range, *pat.ty()) {
-            // The range denotes the values before `isize::MIN` or the values after `usize::MAX`/`isize::MAX`.
-            special_tys.insert(*pat.ty());
-        }
+    if let Constructor::IntRange(range) = pat.ctor()
+        && cx.is_range_beyond_boundaries(range, *pat.ty())
+    {
+        // The range denotes the values before `isize::MIN` or the values after `usize::MAX`/`isize::MAX`.
+        special_tys.insert(*pat.ty());
     }
     pat.iter_fields().for_each(|field_pat| collect_special_tys(cx, field_pat, special_tys))
 }

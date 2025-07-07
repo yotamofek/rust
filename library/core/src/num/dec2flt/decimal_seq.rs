@@ -268,26 +268,26 @@ pub fn parse_decimal_seq(mut s: &[u8]) -> DecimalSeq {
         }
     }
 
-    if let Some((&ch, s_next)) = s.split_first() {
-        if ch == b'e' || ch == b'E' {
-            s = s_next;
-            let mut neg_exp = false;
-            if let Some((&ch, s_next)) = s.split_first() {
-                neg_exp = ch == b'-';
-                if ch == b'-' || ch == b'+' {
-                    s = s_next;
-                }
+    if let Some((&ch, s_next)) = s.split_first()
+        && (ch == b'e' || ch == b'E')
+    {
+        s = s_next;
+        let mut neg_exp = false;
+        if let Some((&ch, s_next)) = s.split_first() {
+            neg_exp = ch == b'-';
+            if ch == b'-' || ch == b'+' {
+                s = s_next;
             }
-            let mut exp_num = 0_i32;
-
-            s.parse_digits(|digit| {
-                if exp_num < 0x10000 {
-                    exp_num = 10 * exp_num + digit as i32;
-                }
-            });
-
-            d.decimal_point += if neg_exp { -exp_num } else { exp_num };
         }
+        let mut exp_num = 0_i32;
+
+        s.parse_digits(|digit| {
+            if exp_num < 0x10000 {
+                exp_num = 10 * exp_num + digit as i32;
+            }
+        });
+
+        d.decimal_point += if neg_exp { -exp_num } else { exp_num };
     }
 
     for i in d.num_digits..DecimalSeq::MAX_DIGITS_WITHOUT_OVERFLOW {

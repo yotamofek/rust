@@ -68,24 +68,24 @@ pub(crate) fn from_target_feature_attr(
                 // We skip this logic in rustdoc, where we want to allow all target features of
                 // all targets, so we can't check their ABI compatibility and anyway we are not
                 // generating code so "it's fine".
-                if !tcx.sess.opts.actually_rustdoc {
-                    if abi_feature_constraints.incompatible.contains(&name.as_str()) {
-                        // For "neon" specifically, we emit an FCW instead of a hard error.
-                        // See <https://github.com/rust-lang/rust/issues/134375>.
-                        if tcx.sess.target.arch == "aarch64" && name.as_str() == "neon" {
-                            tcx.emit_node_span_lint(
-                                AARCH64_SOFTFLOAT_NEON,
-                                tcx.local_def_id_to_hir_id(did),
-                                feature_span,
-                                errors::Aarch64SoftfloatNeon,
-                            );
-                        } else {
-                            tcx.dcx().emit_err(errors::ForbiddenTargetFeatureAttr {
-                                span: feature_span,
-                                feature: name.as_str(),
-                                reason: "this feature is incompatible with the target ABI",
-                            });
-                        }
+                if !tcx.sess.opts.actually_rustdoc
+                    && abi_feature_constraints.incompatible.contains(&name.as_str())
+                {
+                    // For "neon" specifically, we emit an FCW instead of a hard error.
+                    // See <https://github.com/rust-lang/rust/issues/134375>.
+                    if tcx.sess.target.arch == "aarch64" && name.as_str() == "neon" {
+                        tcx.emit_node_span_lint(
+                            AARCH64_SOFTFLOAT_NEON,
+                            tcx.local_def_id_to_hir_id(did),
+                            feature_span,
+                            errors::Aarch64SoftfloatNeon,
+                        );
+                    } else {
+                        tcx.dcx().emit_err(errors::ForbiddenTargetFeatureAttr {
+                            span: feature_span,
+                            feature: name.as_str(),
+                            reason: "this feature is incompatible with the target ABI",
+                        });
                     }
                 }
                 target_features.push(TargetFeature { name, implied: name != feature })
@@ -178,10 +178,10 @@ fn parse_rust_feature_flag<'a>(
             let mut features = FxHashSet::default();
             let mut new_features = vec![base_feature];
             while let Some(new_feature) = new_features.pop() {
-                if features.insert(new_feature) {
-                    if let Some(implied_features) = inverse_implied_features.get(&new_feature) {
-                        new_features.extend(implied_features)
-                    }
+                if features.insert(new_feature)
+                    && let Some(implied_features) = inverse_implied_features.get(&new_feature)
+                {
+                    new_features.extend(implied_features)
                 }
             }
 

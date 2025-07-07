@@ -835,24 +835,24 @@ impl<'a> Parser<'a> {
 
     /// Recover on a doc comment before `}`.
     fn recover_doc_comment_before_brace(&mut self) -> bool {
-        if let token::DocComment(..) = self.token.kind {
-            if self.look_ahead(1, |tok| tok == &token::CloseBrace) {
-                // FIXME: merge with `DocCommentDoesNotDocumentAnything` (E0585)
-                struct_span_code_err!(
-                    self.dcx(),
-                    self.token.span,
-                    E0584,
-                    "found a documentation comment that doesn't document anything",
-                )
-                .with_span_label(self.token.span, "this doc comment doesn't document anything")
-                .with_help(
-                    "doc comments must come before what they document, if a comment was \
+        if let token::DocComment(..) = self.token.kind
+            && self.look_ahead(1, |tok| tok == &token::CloseBrace)
+        {
+            // FIXME: merge with `DocCommentDoesNotDocumentAnything` (E0585)
+            struct_span_code_err!(
+                self.dcx(),
+                self.token.span,
+                E0584,
+                "found a documentation comment that doesn't document anything",
+            )
+            .with_span_label(self.token.span, "this doc comment doesn't document anything")
+            .with_help(
+                "doc comments must come before what they document, if a comment was \
                     intended use `//`",
-                )
-                .emit();
-                self.bump();
-                return true;
-            }
+            )
+            .emit();
+            self.bump();
+            return true;
         }
         false
     }
@@ -1959,21 +1959,21 @@ impl<'a> Parser<'a> {
                     format!("expected `,`, or `}}`, found {}", super::token_descr(&self.token));
 
                 // Try to recover extra trailing angle brackets
-                if let TyKind::Path(_, Path { segments, .. }) = &a_var.ty.kind {
-                    if let Some(last_segment) = segments.last() {
-                        let guar = self.check_trailing_angle_brackets(
-                            last_segment,
-                            &[exp!(Comma), exp!(CloseBrace)],
-                        );
-                        if let Some(_guar) = guar {
-                            // Handle a case like `Vec<u8>>,` where we can continue parsing fields
-                            // after the comma
-                            let _ = self.eat(exp!(Comma));
+                if let TyKind::Path(_, Path { segments, .. }) = &a_var.ty.kind
+                    && let Some(last_segment) = segments.last()
+                {
+                    let guar = self.check_trailing_angle_brackets(
+                        last_segment,
+                        &[exp!(Comma), exp!(CloseBrace)],
+                    );
+                    if let Some(_guar) = guar {
+                        // Handle a case like `Vec<u8>>,` where we can continue parsing fields
+                        // after the comma
+                        let _ = self.eat(exp!(Comma));
 
-                            // `check_trailing_angle_brackets` already emitted a nicer error, as
-                            // proven by the presence of `_guar`. We can continue parsing.
-                            return Ok(a_var);
-                        }
+                        // `check_trailing_angle_brackets` already emitted a nicer error, as
+                        // proven by the presence of `_guar`. We can continue parsing.
+                        return Ok(a_var);
                     }
                 }
 
@@ -2041,12 +2041,12 @@ impl<'a> Parser<'a> {
         attrs: AttrVec,
     ) -> PResult<'a, FieldDef> {
         let name = self.parse_field_ident(adt_ty, lo)?;
-        if self.token == token::Bang {
-            if let Err(mut err) = self.unexpected() {
-                // Encounter the macro invocation
-                err.subdiagnostic(MacroExpandsToAdtField { adt_ty });
-                return Err(err);
-            }
+        if self.token == token::Bang
+            && let Err(mut err) = self.unexpected()
+        {
+            // Encounter the macro invocation
+            err.subdiagnostic(MacroExpandsToAdtField { adt_ty });
+            return Err(err);
         }
         self.expect_field_ty_separator()?;
         let ty = self.parse_ty()?;
@@ -2688,13 +2688,13 @@ impl<'a> Parser<'a> {
         let ext_start_sp = self.token.span;
         let ext = self.parse_extern(case);
 
-        if let Some(CoroutineKind::Async { span, .. }) = coroutine_kind {
-            if span.is_rust_2015() {
-                self.dcx().emit_err(errors::AsyncFnIn2015 {
-                    span,
-                    help: errors::HelpUseLatestEdition::new(),
-                });
-            }
+        if let Some(CoroutineKind::Async { span, .. }) = coroutine_kind
+            && span.is_rust_2015()
+        {
+            self.dcx().emit_err(errors::AsyncFnIn2015 {
+                span,
+                help: errors::HelpUseLatestEdition::new(),
+            });
         }
 
         match coroutine_kind {
@@ -3020,18 +3020,16 @@ impl<'a> Parser<'a> {
 
                 if let Ok(t) = &ty {
                     // Check for trailing angle brackets
-                    if let TyKind::Path(_, Path { segments, .. }) = &t.kind {
-                        if let Some(segment) = segments.last() {
-                            if let Some(guar) =
-                                this.check_trailing_angle_brackets(segment, &[exp!(CloseParen)])
-                            {
-                                return Ok((
-                                    dummy_arg(segment.ident, guar),
-                                    Trailing::No,
-                                    UsePreAttrPos::No,
-                                ));
-                            }
-                        }
+                    if let TyKind::Path(_, Path { segments, .. }) = &t.kind
+                        && let Some(segment) = segments.last()
+                        && let Some(guar) =
+                            this.check_trailing_angle_brackets(segment, &[exp!(CloseParen)])
+                    {
+                        return Ok((
+                            dummy_arg(segment.ident, guar),
+                            Trailing::No,
+                            UsePreAttrPos::No,
+                        ));
                     }
 
                     if this.token != token::Comma && this.token != token::CloseParen {

@@ -2885,24 +2885,22 @@ pub type ExplicitSelf = Spanned<SelfKind>;
 impl Param {
     /// Attempts to cast parameter to `ExplicitSelf`.
     pub fn to_self(&self) -> Option<ExplicitSelf> {
-        if let PatKind::Ident(BindingMode(ByRef::No, mutbl), ident, _) = self.pat.kind {
-            if ident.name == kw::SelfLower {
-                return match self.ty.kind {
-                    TyKind::ImplicitSelf => Some(respan(self.pat.span, SelfKind::Value(mutbl))),
-                    TyKind::Ref(lt, MutTy { ref ty, mutbl }) if ty.kind.is_implicit_self() => {
-                        Some(respan(self.pat.span, SelfKind::Region(lt, mutbl)))
-                    }
-                    TyKind::PinnedRef(lt, MutTy { ref ty, mutbl })
-                        if ty.kind.is_implicit_self() =>
-                    {
-                        Some(respan(self.pat.span, SelfKind::Pinned(lt, mutbl)))
-                    }
-                    _ => Some(respan(
-                        self.pat.span.to(self.ty.span),
-                        SelfKind::Explicit(self.ty.clone(), mutbl),
-                    )),
-                };
-            }
+        if let PatKind::Ident(BindingMode(ByRef::No, mutbl), ident, _) = self.pat.kind
+            && ident.name == kw::SelfLower
+        {
+            return match self.ty.kind {
+                TyKind::ImplicitSelf => Some(respan(self.pat.span, SelfKind::Value(mutbl))),
+                TyKind::Ref(lt, MutTy { ref ty, mutbl }) if ty.kind.is_implicit_self() => {
+                    Some(respan(self.pat.span, SelfKind::Region(lt, mutbl)))
+                }
+                TyKind::PinnedRef(lt, MutTy { ref ty, mutbl }) if ty.kind.is_implicit_self() => {
+                    Some(respan(self.pat.span, SelfKind::Pinned(lt, mutbl)))
+                }
+                _ => Some(respan(
+                    self.pat.span.to(self.ty.span),
+                    SelfKind::Explicit(self.ty.clone(), mutbl),
+                )),
+            };
         }
         None
     }

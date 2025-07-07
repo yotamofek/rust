@@ -349,11 +349,11 @@ where
     // re-executing the query since `try_start` only checks that the query is not currently
     // executing, but another thread may have already completed the query and stores it result
     // in the query cache.
-    if qcx.dep_context().sess().threads() > 1 {
-        if let Some((value, index)) = query.query_cache(qcx).lookup(&key) {
-            qcx.dep_context().profiler().query_cache_hit(index.into());
-            return (value, Some(index));
-        }
+    if qcx.dep_context().sess().threads() > 1
+        && let Some((value, index)) = query.query_cache(qcx).lookup(&key)
+    {
+        qcx.dep_context().profiler().query_cache_hit(index.into());
+        return (value, Some(index));
     }
 
     let current_job_id = qcx.current_query_job();

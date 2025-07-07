@@ -163,19 +163,18 @@ impl<'a, 'ra, 'tcx> UnusedImportCheckVisitor<'a, 'ra, 'tcx> {
 
             // If the crate is fully unused, we suggest removing it altogether.
             // We do this in any edition.
-            if warn_if_unused {
-                if let Some(&span) = maybe_unused_extern_crates.get(&extern_crate.id) {
-                    self.r.lint_buffer.buffer_lint(
-                        UNUSED_EXTERN_CRATES,
-                        extern_crate.id,
-                        span,
-                        BuiltinLintDiag::UnusedExternCrate {
-                            span: extern_crate.span,
-                            removal_span: extern_crate.span_with_attributes,
-                        },
-                    );
-                    continue;
-                }
+            if warn_if_unused && let Some(&span) = maybe_unused_extern_crates.get(&extern_crate.id)
+            {
+                self.r.lint_buffer.buffer_lint(
+                    UNUSED_EXTERN_CRATES,
+                    extern_crate.id,
+                    span,
+                    BuiltinLintDiag::UnusedExternCrate {
+                        span: extern_crate.span,
+                        removal_span: extern_crate.span_with_attributes,
+                    },
+                );
+                continue;
             }
 
             // If we are not in Rust 2018 edition, then we don't make any further
@@ -400,15 +399,15 @@ impl Resolver<'_, '_> {
                     || import.span.is_dummy()
                     || self.import_use_map.contains_key(import) =>
                 {
-                    if let ImportKind::MacroUse { .. } = import.kind {
-                        if !import.span.is_dummy() {
-                            self.lint_buffer.buffer_lint(
-                                MACRO_USE_EXTERN_CRATE,
-                                import.root_id,
-                                import.span,
-                                BuiltinLintDiag::MacroUseDeprecated,
-                            );
-                        }
+                    if let ImportKind::MacroUse { .. } = import.kind
+                        && !import.span.is_dummy()
+                    {
+                        self.lint_buffer.buffer_lint(
+                            MACRO_USE_EXTERN_CRATE,
+                            import.root_id,
+                            import.span,
+                            BuiltinLintDiag::MacroUseDeprecated,
+                        );
                     }
                 }
                 ImportKind::ExternCrate { id, .. } => {

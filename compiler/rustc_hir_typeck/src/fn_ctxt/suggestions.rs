@@ -615,31 +615,31 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected: Ty<'tcx>,
         found: Ty<'tcx>,
     ) -> bool {
-        if let (ty::FnPtr(..), ty::Closure(def_id, _)) = (expected.kind(), found.kind()) {
-            if let Some(upvars) = self.tcx.upvars_mentioned(*def_id) {
-                // Report upto four upvars being captured to reduce the amount error messages
-                // reported back to the user.
-                let spans_and_labels = upvars
-                    .iter()
-                    .take(4)
-                    .map(|(var_hir_id, upvar)| {
-                        let var_name = self.tcx.hir_name(*var_hir_id).to_string();
-                        let msg = format!("`{var_name}` captured here");
-                        (upvar.span, msg)
-                    })
-                    .collect::<Vec<_>>();
+        if let (ty::FnPtr(..), ty::Closure(def_id, _)) = (expected.kind(), found.kind())
+            && let Some(upvars) = self.tcx.upvars_mentioned(*def_id)
+        {
+            // Report upto four upvars being captured to reduce the amount error messages
+            // reported back to the user.
+            let spans_and_labels = upvars
+                .iter()
+                .take(4)
+                .map(|(var_hir_id, upvar)| {
+                    let var_name = self.tcx.hir_name(*var_hir_id).to_string();
+                    let msg = format!("`{var_name}` captured here");
+                    (upvar.span, msg)
+                })
+                .collect::<Vec<_>>();
 
-                let mut multi_span: MultiSpan =
-                    spans_and_labels.iter().map(|(sp, _)| *sp).collect::<Vec<_>>().into();
-                for (sp, label) in spans_and_labels {
-                    multi_span.push_span_label(sp, label);
-                }
-                err.span_note(
-                    multi_span,
-                    "closures can only be coerced to `fn` types if they do not capture any variables"
-                );
-                return true;
+            let mut multi_span: MultiSpan =
+                spans_and_labels.iter().map(|(sp, _)| *sp).collect::<Vec<_>>().into();
+            for (sp, label) in spans_and_labels {
+                multi_span.push_span_label(sp, label);
             }
+            err.span_note(
+                multi_span,
+                "closures can only be coerced to `fn` types if they do not capture any variables",
+            );
+            return true;
         }
         false
     }
@@ -1551,34 +1551,29 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         blk_ty: Ty<'tcx>,
         expected_ty: Ty<'tcx>,
     ) {
-        if let ty::Slice(elem_ty) | ty::Array(elem_ty, _) = expected_ty.kind() {
-            if self.may_coerce(blk_ty, *elem_ty)
-                && blk.stmts.is_empty()
-                && blk.rules == hir::BlockCheckMode::DefaultBlock
-                && let source_map = self.tcx.sess.source_map()
-                && let Ok(snippet) = source_map.span_to_snippet(blk.span)
-                && snippet.starts_with('{')
-                && snippet.ends_with('}')
-            {
-                diag.multipart_suggestion_verbose(
-                    "to create an array, use square brackets instead of curly braces",
-                    vec![
-                        (
-                            blk.span
-                                .shrink_to_lo()
-                                .with_hi(rustc_span::BytePos(blk.span.lo().0 + 1)),
-                            "[".to_string(),
-                        ),
-                        (
-                            blk.span
-                                .shrink_to_hi()
-                                .with_lo(rustc_span::BytePos(blk.span.hi().0 - 1)),
-                            "]".to_string(),
-                        ),
-                    ],
-                    Applicability::MachineApplicable,
-                );
-            }
+        if let ty::Slice(elem_ty) | ty::Array(elem_ty, _) = expected_ty.kind()
+            && self.may_coerce(blk_ty, *elem_ty)
+            && blk.stmts.is_empty()
+            && blk.rules == hir::BlockCheckMode::DefaultBlock
+            && let source_map = self.tcx.sess.source_map()
+            && let Ok(snippet) = source_map.span_to_snippet(blk.span)
+            && snippet.starts_with('{')
+            && snippet.ends_with('}')
+        {
+            diag.multipart_suggestion_verbose(
+                "to create an array, use square brackets instead of curly braces",
+                vec![
+                    (
+                        blk.span.shrink_to_lo().with_hi(rustc_span::BytePos(blk.span.lo().0 + 1)),
+                        "[".to_string(),
+                    ),
+                    (
+                        blk.span.shrink_to_hi().with_lo(rustc_span::BytePos(blk.span.hi().0 - 1)),
+                        "]".to_string(),
+                    ),
+                ],
+                Applicability::MachineApplicable,
+            );
         }
     }
 
@@ -2324,40 +2319,35 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
                 if let hir::Node::Block(&hir::Block { span: block_span, expr: Some(e), .. }) =
                     self.tcx.hir_node(parent)
+                    && e.hir_id == id
+                    && let Some(span) = expr.span.find_ancestor_inside(block_span)
                 {
-                    if e.hir_id == id {
-                        if let Some(span) = expr.span.find_ancestor_inside(block_span) {
-                            let return_suggestions = if self
-                                .tcx
-                                .is_diagnostic_item(sym::Result, expected_adt.did())
-                            {
-                                vec!["Ok(())"]
-                            } else if self.tcx.is_diagnostic_item(sym::Option, expected_adt.did()) {
-                                vec!["None", "Some(())"]
-                            } else {
-                                return false;
-                            };
-                            if let Some(indent) =
-                                self.tcx.sess.source_map().indentation_before(span.shrink_to_lo())
-                            {
-                                // Add a semicolon, except after `}`.
-                                let semicolon =
-                                    match self.tcx.sess.source_map().span_to_snippet(span) {
-                                        Ok(s) if s.ends_with('}') => "",
-                                        _ => ";",
-                                    };
-                                err.span_suggestions(
-                                    span.shrink_to_hi(),
-                                    "try adding an expression at the end of the block",
-                                    return_suggestions
-                                        .into_iter()
-                                        .map(|r| format!("{semicolon}\n{indent}{r}")),
-                                    Applicability::MaybeIncorrect,
-                                );
-                            }
-                            return true;
-                        }
+                    let return_suggestions =
+                        if self.tcx.is_diagnostic_item(sym::Result, expected_adt.did()) {
+                            vec!["Ok(())"]
+                        } else if self.tcx.is_diagnostic_item(sym::Option, expected_adt.did()) {
+                            vec!["None", "Some(())"]
+                        } else {
+                            return false;
+                        };
+                    if let Some(indent) =
+                        self.tcx.sess.source_map().indentation_before(span.shrink_to_lo())
+                    {
+                        // Add a semicolon, except after `}`.
+                        let semicolon = match self.tcx.sess.source_map().span_to_snippet(span) {
+                            Ok(s) if s.ends_with('}') => "",
+                            _ => ";",
+                        };
+                        err.span_suggestions(
+                            span.shrink_to_hi(),
+                            "try adding an expression at the end of the block",
+                            return_suggestions
+                                .into_iter()
+                                .map(|r| format!("{semicolon}\n{indent}{r}")),
+                            Applicability::MaybeIncorrect,
+                        );
                     }
+                    return true;
                 }
             }
 
@@ -2755,11 +2745,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
                     if let hir::Node::Expr(hir::Expr { kind: hir::ExprKind::Assign(..), .. }) =
                         self.tcx.parent_hir_node(expr.hir_id)
+                        && mutability.is_mut()
                     {
-                        if mutability.is_mut() {
-                            // Suppressing this diagnostic, we'll properly print it in `check_expr_assign`
-                            return None;
-                        }
+                        // Suppressing this diagnostic, we'll properly print it in `check_expr_assign`
+                        return None;
                     }
 
                     let make_sugg = |expr: &Expr<'_>, span: Span, sugg: &str| {
@@ -3006,13 +2995,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     /// Returns whether the given expression is an `else if`.
     fn is_else_if_block(&self, expr: &hir::Expr<'_>) -> bool {
-        if let hir::ExprKind::If(..) = expr.kind {
-            if let Node::Expr(hir::Expr {
-                kind: hir::ExprKind::If(_, _, Some(else_expr)), ..
-            }) = self.tcx.parent_hir_node(expr.hir_id)
-            {
-                return else_expr.hir_id == expr.hir_id;
-            }
+        if let hir::ExprKind::If(..) = expr.kind
+            && let Node::Expr(hir::Expr { kind: hir::ExprKind::If(_, _, Some(else_expr)), .. }) =
+                self.tcx.parent_hir_node(expr.hir_id)
+        {
+            return else_expr.hir_id == expr.hir_id;
         }
         false
     }
@@ -3064,27 +3051,26 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             // `expr` is a conversion like `u32::from(val)`, do not suggest anything (#63697).
             && let (hir::TyKind::Path(hir::QPath::Resolved(None, base_ty_path)), sym::from) =
                 (&base_ty.kind, path_segment.ident.name)
+            && let Some(ident) = &base_ty_path.segments.iter().map(|s| s.ident).next()
         {
-            if let Some(ident) = &base_ty_path.segments.iter().map(|s| s.ident).next() {
-                match ident.name {
-                    sym::i128
-                    | sym::i64
-                    | sym::i32
-                    | sym::i16
-                    | sym::i8
-                    | sym::u128
-                    | sym::u64
-                    | sym::u32
-                    | sym::u16
-                    | sym::u8
-                    | sym::isize
-                    | sym::usize
-                        if base_ty_path.segments.len() == 1 =>
-                    {
-                        return false;
-                    }
-                    _ => {}
+            match ident.name {
+                sym::i128
+                | sym::i64
+                | sym::i32
+                | sym::i16
+                | sym::i8
+                | sym::u128
+                | sym::u64
+                | sym::u32
+                | sym::u16
+                | sym::u8
+                | sym::isize
+                | sym::usize
+                    if base_ty_path.segments.len() == 1 =>
+                {
+                    return false;
                 }
+                _ => {}
             }
         }
 

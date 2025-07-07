@@ -871,13 +871,12 @@ where
                 // we still use modulo regions here. This is fine as specialization currently
                 // assumes that specializing impls have to be always applicable, meaning that
                 // the only allowed region constraints may be constraints also present on the default impl.
-                if matches!(allow_inference_constraints, AllowInferenceConstraints::Yes)
-                    || has_only_region_constraints(c.result)
+                if (matches!(allow_inference_constraints, AllowInferenceConstraints::Yes)
+                    || has_only_region_constraints(c.result))
+                    && self.cx().impl_specializes(other_def_id, victim_def_id)
                 {
-                    if self.cx().impl_specializes(other_def_id, victim_def_id) {
-                        candidates.remove(i);
-                        continue 'outer;
-                    }
+                    candidates.remove(i);
+                    continue 'outer;
                 }
             }
 
@@ -957,10 +956,10 @@ where
 
                 // If the trait goal has been proven by using the environment, we want to treat
                 // aliases as rigid if there are no applicable projection bounds in the environment.
-                if considered_candidates.is_empty() {
-                    if let Ok(response) = inject_normalize_to_rigid_candidate(self) {
-                        considered_candidates.push(response);
-                    }
+                if considered_candidates.is_empty()
+                    && let Ok(response) = inject_normalize_to_rigid_candidate(self)
+                {
+                    considered_candidates.push(response);
                 }
 
                 if let Some(response) = self.try_merge_responses(&considered_candidates) {

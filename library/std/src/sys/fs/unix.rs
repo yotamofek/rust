@@ -845,10 +845,11 @@ pub(crate) fn debug_assert_fd_is_open(fd: RawFd) {
     use crate::sys::os::errno;
 
     // this is similar to assert_unsafe_precondition!() but it doesn't require const
-    if core::ub_checks::check_library_ub() {
-        if unsafe { libc::fcntl(fd, libc::F_GETFD) } == -1 && errno() == libc::EBADF {
-            rtabort!("IO Safety violation: owned file descriptor already closed");
-        }
+    if core::ub_checks::check_library_ub()
+        && unsafe { libc::fcntl(fd, libc::F_GETFD) } == -1
+        && errno() == libc::EBADF
+    {
+        rtabort!("IO Safety violation: owned file descriptor already closed");
     }
 }
 

@@ -1164,22 +1164,22 @@ impl<'a, 'tcx> Visitor<'tcx> for FindInferSourceVisitor<'a, 'tcx> {
     fn visit_local(&mut self, local: &'tcx LetStmt<'tcx>) {
         intravisit::walk_local(self, local);
 
-        if let Some(ty) = self.opt_node_type(local.hir_id) {
-            if self.generic_arg_contains_target(ty.into()) {
-                match local.source {
-                    LocalSource::Normal if local.ty.is_none() => {
-                        self.update_infer_source(InferSource {
-                            span: local.pat.span,
-                            kind: InferSourceKind::LetBinding {
-                                insert_span: local.pat.span.shrink_to_hi(),
-                                pattern_name: local.pat.simple_ident(),
-                                ty,
-                                def_id: None,
-                            },
-                        })
-                    }
-                    _ => {}
+        if let Some(ty) = self.opt_node_type(local.hir_id)
+            && self.generic_arg_contains_target(ty.into())
+        {
+            match local.source {
+                LocalSource::Normal if local.ty.is_none() => {
+                    self.update_infer_source(InferSource {
+                        span: local.pat.span,
+                        kind: InferSourceKind::LetBinding {
+                            insert_span: local.pat.span.shrink_to_hi(),
+                            pattern_name: local.pat.simple_ident(),
+                            ty,
+                            def_id: None,
+                        },
+                    })
                 }
+                _ => {}
             }
         }
     }
@@ -1267,29 +1267,28 @@ impl<'a, 'tcx> Visitor<'tcx> for FindInferSourceVisitor<'a, 'tcx> {
             }
         }
 
-        if let Some(node_ty) = self.opt_node_type(expr.hir_id) {
-            if let (
+        if let Some(node_ty) = self.opt_node_type(expr.hir_id)
+            && let (
                 &ExprKind::Closure(&Closure { fn_decl, body, fn_decl_span, .. }),
                 ty::Closure(_, args),
             ) = (&expr.kind, node_ty.kind())
-            {
-                let output = args.as_closure().sig().output().skip_binder();
-                if self.generic_arg_contains_target(output.into()) {
-                    let body = self.tecx.tcx.hir_body(body);
-                    let should_wrap_expr = if matches!(body.value.kind, ExprKind::Block(..)) {
-                        None
-                    } else {
-                        Some(body.value.span.shrink_to_hi())
-                    };
-                    self.update_infer_source(InferSource {
-                        span: fn_decl_span,
-                        kind: InferSourceKind::ClosureReturn {
-                            ty: output,
-                            data: &fn_decl.output,
-                            should_wrap_expr,
-                        },
-                    })
-                }
+        {
+            let output = args.as_closure().sig().output().skip_binder();
+            if self.generic_arg_contains_target(output.into()) {
+                let body = self.tecx.tcx.hir_body(body);
+                let should_wrap_expr = if matches!(body.value.kind, ExprKind::Block(..)) {
+                    None
+                } else {
+                    Some(body.value.span.shrink_to_hi())
+                };
+                self.update_infer_source(InferSource {
+                    span: fn_decl_span,
+                    kind: InferSourceKind::ClosureReturn {
+                        ty: output,
+                        data: &fn_decl.output,
+                        should_wrap_expr,
+                    },
+                })
             }
         }
 

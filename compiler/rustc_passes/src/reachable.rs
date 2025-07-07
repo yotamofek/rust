@@ -104,10 +104,10 @@ impl<'tcx> Visitor<'tcx> for ReachableContext<'tcx> {
 
     fn visit_inline_asm(&mut self, asm: &'tcx hir::InlineAsm<'tcx>, id: hir::HirId) {
         for (op, _) in asm.operands {
-            if let hir::InlineAsmOperand::SymStatic { def_id, .. } = op {
-                if let Some(def_id) = def_id.as_local() {
-                    self.reachable_symbols.insert(def_id);
-                }
+            if let hir::InlineAsmOperand::SymStatic { def_id, .. } = op
+                && let Some(def_id) = def_id.as_local()
+            {
+                self.reachable_symbols.insert(def_id);
             }
         }
         intravisit::walk_inline_asm(self, asm, id);
@@ -337,15 +337,15 @@ impl<'tcx> ReachableContext<'tcx> {
             DefKind::Static { nested: true, .. } => {
                 // This is the main purpose of this function: add the def_id we find
                 // to `reachable_symbols`.
-                if self.reachable_symbols.insert(def_id) {
-                    if let Ok(alloc) = self.tcx.eval_static_initializer(def_id) {
-                        // This cannot cause infinite recursion, because we abort by inserting into the
-                        // work list once we hit a normal static. Nested statics, even if they somehow
-                        // become recursive, are also not infinitely recursing, because of the
-                        // `reachable_symbols` check above.
-                        // We still need to protect against stack overflow due to deeply nested statics.
-                        ensure_sufficient_stack(|| self.propagate_from_alloc(alloc));
-                    }
+                if self.reachable_symbols.insert(def_id)
+                    && let Ok(alloc) = self.tcx.eval_static_initializer(def_id)
+                {
+                    // This cannot cause infinite recursion, because we abort by inserting into the
+                    // work list once we hit a normal static. Nested statics, even if they somehow
+                    // become recursive, are also not infinitely recursing, because of the
+                    // `reachable_symbols` check above.
+                    // We still need to protect against stack overflow due to deeply nested statics.
+                    ensure_sufficient_stack(|| self.propagate_from_alloc(alloc));
                 }
             }
             // Reachable constants and reachable statics can have their contents inlined

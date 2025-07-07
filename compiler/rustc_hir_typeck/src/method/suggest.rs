@@ -335,35 +335,34 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         },
                     );
                 }
-                if let ty::Ref(region, t_type, mutability) = rcvr_ty.kind() {
-                    if needs_mut {
-                        let trait_type =
-                            Ty::new_ref(self.tcx, *region, *t_type, mutability.invert());
-                        let msg = format!("you need `{trait_type}` instead of `{rcvr_ty}`");
-                        let mut kind = &self_expr.kind;
-                        while let hir::ExprKind::AddrOf(_, _, expr)
-                        | hir::ExprKind::Unary(hir::UnOp::Deref, expr) = kind
-                        {
-                            kind = &expr.kind;
-                        }
-                        if let hir::ExprKind::Path(hir::QPath::Resolved(None, path)) = kind
-                            && let hir::def::Res::Local(hir_id) = path.res
-                            && let hir::Node::Pat(b) = self.tcx.hir_node(hir_id)
-                            && let hir::Node::Param(p) = self.tcx.parent_hir_node(b.hir_id)
-                            && let Some(decl) = self.tcx.parent_hir_node(p.hir_id).fn_decl()
-                            && let Some(ty) = decl.inputs.iter().find(|ty| ty.span == p.ty_span)
-                            && let hir::TyKind::Ref(_, mut_ty) = &ty.kind
-                            && let hir::Mutability::Not = mut_ty.mutbl
-                        {
-                            err.span_suggestion_verbose(
-                                mut_ty.ty.span.shrink_to_lo(),
-                                msg,
-                                "mut ",
-                                Applicability::MachineApplicable,
-                            );
-                        } else {
-                            err.help(msg);
-                        }
+                if let ty::Ref(region, t_type, mutability) = rcvr_ty.kind()
+                    && needs_mut
+                {
+                    let trait_type = Ty::new_ref(self.tcx, *region, *t_type, mutability.invert());
+                    let msg = format!("you need `{trait_type}` instead of `{rcvr_ty}`");
+                    let mut kind = &self_expr.kind;
+                    while let hir::ExprKind::AddrOf(_, _, expr)
+                    | hir::ExprKind::Unary(hir::UnOp::Deref, expr) = kind
+                    {
+                        kind = &expr.kind;
+                    }
+                    if let hir::ExprKind::Path(hir::QPath::Resolved(None, path)) = kind
+                        && let hir::def::Res::Local(hir_id) = path.res
+                        && let hir::Node::Pat(b) = self.tcx.hir_node(hir_id)
+                        && let hir::Node::Param(p) = self.tcx.parent_hir_node(b.hir_id)
+                        && let Some(decl) = self.tcx.parent_hir_node(p.hir_id).fn_decl()
+                        && let Some(ty) = decl.inputs.iter().find(|ty| ty.span == p.ty_span)
+                        && let hir::TyKind::Ref(_, mut_ty) = &ty.kind
+                        && let hir::Mutability::Not = mut_ty.mutbl
+                    {
+                        err.span_suggestion_verbose(
+                            mut_ty.ty.span.shrink_to_lo(),
+                            msg,
+                            "mut ",
+                            Applicability::MachineApplicable,
+                        );
+                    } else {
+                        err.help(msg);
                     }
                 }
                 err.emit()
@@ -655,25 +654,27 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // Don't show generic arguments when the method can't be found in any implementation (#81576).
         let mut ty_str_reported = ty_str.clone();
-        if let ty::Adt(_, generics) = rcvr_ty.kind() {
-            if generics.len() > 0 {
-                let mut autoderef = self.autoderef(span, rcvr_ty).silence_errors();
-                let candidate_found = autoderef.any(|(ty, _)| {
-                    if let ty::Adt(adt_def, _) = ty.kind() {
-                        self.tcx
-                            .inherent_impls(adt_def.did())
-                            .into_iter()
-                            .any(|def_id| self.associated_value(*def_id, item_ident).is_some())
-                    } else {
-                        false
-                    }
-                });
-                let has_deref = autoderef.step_count() > 0;
-                if !candidate_found && !has_deref && unsatisfied_predicates.is_empty() {
-                    if let Some((path_string, _)) = ty_str.split_once('<') {
-                        ty_str_reported = path_string.to_string();
-                    }
+        if let ty::Adt(_, generics) = rcvr_ty.kind()
+            && generics.len() > 0
+        {
+            let mut autoderef = self.autoderef(span, rcvr_ty).silence_errors();
+            let candidate_found = autoderef.any(|(ty, _)| {
+                if let ty::Adt(adt_def, _) = ty.kind() {
+                    self.tcx
+                        .inherent_impls(adt_def.did())
+                        .into_iter()
+                        .any(|def_id| self.associated_value(*def_id, item_ident).is_some())
+                } else {
+                    false
                 }
+            });
+            let has_deref = autoderef.step_count() > 0;
+            if !candidate_found
+                && !has_deref
+                && unsatisfied_predicates.is_empty()
+                && let Some((path_string, _)) = ty_str.split_once('<')
+            {
+                ty_str_reported = path_string.to_string();
             }
         }
 
@@ -3282,11 +3283,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         let mut derives_grouped = Vec::<(String, Span, String)>::new();
         for (self_name, self_span, trait_name) in derives.into_iter() {
-            if let Some((last_self_name, _, last_trait_names)) = derives_grouped.last_mut() {
-                if last_self_name == &self_name {
-                    last_trait_names.push_str(format!(", {trait_name}").as_str());
-                    continue;
-                }
+            if let Some((last_self_name, _, last_trait_names)) = derives_grouped.last_mut()
+                && last_self_name == &self_name
+            {
+                last_trait_names.push_str(format!(", {trait_name}").as_str());
+                continue;
             }
             derives_grouped.push((self_name, self_span, trait_name.to_string()));
         }

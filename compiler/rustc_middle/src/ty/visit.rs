@@ -195,20 +195,20 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for LateBoundRegionsCollector {
         // if we are only looking for "constrained" region, we have to
         // ignore the inputs of an unevaluated const, as they may not appear
         // in the normalized form
-        if self.just_constrained {
-            if let ty::ConstKind::Unevaluated(..) = c.kind() {
-                return;
-            }
+        if self.just_constrained
+            && let ty::ConstKind::Unevaluated(..) = c.kind()
+        {
+            return;
         }
 
         c.super_visit_with(self)
     }
 
     fn visit_region(&mut self, r: ty::Region<'tcx>) {
-        if let ty::ReBound(debruijn, br) = r.kind() {
-            if debruijn == self.current_index {
-                self.regions.insert(br.kind);
-            }
+        if let ty::ReBound(debruijn, br) = r.kind()
+            && debruijn == self.current_index
+        {
+            self.regions.insert(br.kind);
         }
     }
 }

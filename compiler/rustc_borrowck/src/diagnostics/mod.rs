@@ -200,21 +200,21 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
         self.local_names.get_or_init(|| {
             let mut local_names = IndexVec::from_elem(None, &self.body.local_decls);
             for var_debug_info in &self.body.var_debug_info {
-                if let VarDebugInfoContents::Place(place) = var_debug_info.value {
-                    if let Some(local) = place.as_local() {
-                        if let Some(prev_name) = local_names[local]
-                            && var_debug_info.name != prev_name
-                        {
-                            span_bug!(
-                                var_debug_info.source_info.span,
-                                "local {:?} has many names (`{}` vs `{}`)",
-                                local,
-                                prev_name,
-                                var_debug_info.name
-                            );
-                        }
-                        local_names[local] = Some(var_debug_info.name);
+                if let VarDebugInfoContents::Place(place) = var_debug_info.value
+                    && let Some(local) = place.as_local()
+                {
+                    if let Some(prev_name) = local_names[local]
+                        && var_debug_info.name != prev_name
+                    {
+                        span_bug!(
+                            var_debug_info.source_info.span,
+                            "local {:?} has many names (`{}` vs `{}`)",
+                            local,
+                            prev_name,
+                            var_debug_info.name
+                        );
                     }
+                    local_names[local] = Some(var_debug_info.name);
                 }
             }
             local_names
@@ -266,49 +266,43 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
             args,
             ..
         } = &terminator.kind
+            && let ty::FnDef(id, _) = *const_.ty().kind()
         {
-            if let ty::FnDef(id, _) = *const_.ty().kind() {
-                debug!("add_moved_or_invoked_closure_note: id={:?}", id);
-                if self.infcx.tcx.is_lang_item(self.infcx.tcx.parent(id), LangItem::FnOnce) {
-                    let closure = match args.first() {
-                        Some(Spanned {
-                            node: Operand::Copy(place) | Operand::Move(place), ..
-                        }) if target == place.local_or_deref_local() => {
-                            place.local_or_deref_local().unwrap()
-                        }
-                        _ => return false,
-                    };
+            debug!("add_moved_or_invoked_closure_note: id={:?}", id);
+            if self.infcx.tcx.is_lang_item(self.infcx.tcx.parent(id), LangItem::FnOnce) {
+                let closure = match args.first() {
+                    Some(Spanned { node: Operand::Copy(place) | Operand::Move(place), .. })
+                        if target == place.local_or_deref_local() =>
+                    {
+                        place.local_or_deref_local().unwrap()
+                    }
+                    _ => return false,
+                };
 
-                    debug!("add_moved_or_invoked_closure_note: closure={:?}", closure);
-                    if let ty::Closure(did, _) = self.body.local_decls[closure].ty.kind() {
-                        let did = did.expect_local();
-                        if let Some((span, hir_place)) = self.infcx.tcx.closure_kind_origin(did) {
-                            diag.subdiagnostic(OnClosureNote::InvokedTwice {
-                                place_name: &ty::place_to_string_for_capture(
-                                    self.infcx.tcx,
-                                    hir_place,
-                                ),
-                                span: *span,
-                            });
-                            return true;
-                        }
+                debug!("add_moved_or_invoked_closure_note: closure={:?}", closure);
+                if let ty::Closure(did, _) = self.body.local_decls[closure].ty.kind() {
+                    let did = did.expect_local();
+                    if let Some((span, hir_place)) = self.infcx.tcx.closure_kind_origin(did) {
+                        diag.subdiagnostic(OnClosureNote::InvokedTwice {
+                            place_name: &ty::place_to_string_for_capture(self.infcx.tcx, hir_place),
+                            span: *span,
+                        });
+                        return true;
                     }
                 }
             }
         }
 
         // Check if we are just moving a closure after it has been invoked.
-        if let Some(target) = target {
-            if let ty::Closure(did, _) = self.body.local_decls[target].ty.kind() {
-                let did = did.expect_local();
-                if let Some((span, hir_place)) = self.infcx.tcx.closure_kind_origin(did) {
-                    diag.subdiagnostic(OnClosureNote::MovedTwice {
-                        place_name: &ty::place_to_string_for_capture(self.infcx.tcx, hir_place),
-                        span: *span,
-                    });
-                    return true;
-                }
-            }
+        if let Some(target) = target
+            && let ty::Closure(did, _) = self.body.local_decls[target].ty.kind()
+            && let Some((span, hir_place)) = self.infcx.tcx.closure_kind_origin(did.expect_local())
+        {
+            diag.subdiagnostic(OnClosureNote::MovedTwice {
+                place_name: &ty::place_to_string_for_capture(self.infcx.tcx, hir_place),
+                span: *span,
+            });
+            return true;
         }
         false
     }
@@ -589,12 +583,10 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                             },
                         ..
                     }) = &bbd.terminator
-                    {
-                        if let Some(source) =
+                        && let Some(source) =
                             BorrowedContentSource::from_call(func.ty(self.body, tcx), tcx)
-                        {
-                            return source;
-                        }
+                    {
+                        return source;
                     }
                 }
             }

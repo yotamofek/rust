@@ -37,11 +37,9 @@ fn uncached_llvm_type<'a, 'tcx>(
             let mut name = with_no_visible_paths!(with_no_trimmed_paths!(layout.ty.to_string()));
             if let (&ty::Adt(def, _), &Variants::Single { index }) =
                 (layout.ty.kind(), &layout.variants)
-            {
-                if def.is_enum() {
+                && def.is_enum() {
                     write!(&mut name, "::{}", def.variant(index).name).unwrap();
                 }
-            }
             if let (&ty::Coroutine(_, _), &Variants::Single { index }) =
                 (layout.ty.kind(), &layout.variants)
             {

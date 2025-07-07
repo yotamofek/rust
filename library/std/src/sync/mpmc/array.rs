@@ -329,10 +329,10 @@ impl<T> Channel<T> {
                 return res.map_err(SendTimeoutError::Disconnected);
             }
 
-            if let Some(d) = deadline {
-                if Instant::now() >= d {
-                    return Err(SendTimeoutError::Timeout(msg));
-                }
+            if let Some(d) = deadline
+                && Instant::now() >= d
+            {
+                return Err(SendTimeoutError::Timeout(msg));
             }
 
             Context::with(|cx| {
@@ -381,10 +381,10 @@ impl<T> Channel<T> {
                 return res.map_err(|_| RecvTimeoutError::Disconnected);
             }
 
-            if let Some(d) = deadline {
-                if Instant::now() >= d {
-                    return Err(RecvTimeoutError::Timeout);
-                }
+            if let Some(d) = deadline
+                && Instant::now() >= d
+            {
+                return Err(RecvTimeoutError::Timeout);
             }
 
             Context::with(|cx| {

@@ -504,10 +504,10 @@ fn has_late_bound_regions<'tcx>(tcx: TyCtxt<'tcx>, node: Node<'tcx>) -> Option<S
     ) -> Option<Span> {
         let mut visitor = LateBoundRegionsDetector { tcx, outer_index: ty::INNERMOST };
         for param in generics.params {
-            if let GenericParamKind::Lifetime { .. } = param.kind {
-                if tcx.is_late_bound(param.hir_id) {
-                    return Some(param.span);
-                }
+            if let GenericParamKind::Lifetime { .. } = param.kind
+                && tcx.is_late_bound(param.hir_id)
+            {
+                return Some(param.span);
             }
         }
         visitor.visit_fn_decl(decl).break_value()

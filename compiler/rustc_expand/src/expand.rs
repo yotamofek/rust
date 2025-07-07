@@ -1734,10 +1734,10 @@ impl InvocationCollectorNode for ast::Stmt {
     fn post_flat_map_node_collect_bang(stmts: &mut Self::OutputTy, add_semicolon: AddSemicolon) {
         // If this is a macro invocation with a semicolon, then apply that
         // semicolon to the final statement produced by expansion.
-        if matches!(add_semicolon, AddSemicolon::Yes) {
-            if let Some(stmt) = stmts.pop() {
-                stmts.push(stmt.add_trailing_semicolon());
-            }
+        if matches!(add_semicolon, AddSemicolon::Yes)
+            && let Some(stmt) = stmts.pop()
+        {
+            stmts.push(stmt.add_trailing_semicolon());
         }
     }
 }

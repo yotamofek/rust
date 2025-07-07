@@ -426,12 +426,11 @@ impl<'a, 'tcx> WfPredicates<'a, 'tcx> {
                 .map(|(i, term)| {
                     let mut cause = traits::ObligationCause::misc(self.span, self.body_id);
                     // The first arg is the self ty - use the correct span for it.
-                    if i == 0 {
-                        if let Some(hir::ItemKind::Impl(hir::Impl { self_ty, .. })) =
+                    if i == 0
+                        && let Some(hir::ItemKind::Impl(hir::Impl { self_ty, .. })) =
                             item.map(|i| &i.kind)
-                        {
-                            cause.span = self_ty.span;
-                        }
+                    {
+                        cause.span = self_ty.span;
                     }
                     traits::Obligation::with_depth(
                         tcx,
@@ -683,21 +682,19 @@ impl<'a, 'tcx> WfPredicates<'a, 'tcx> {
                             ty::ClauseKind::ConstArgHasType(c, base_ty),
                         )),
                     ));
-                    if !tcx.features().generic_pattern_types() {
-                        if c.has_param() {
-                            if self.span.is_dummy() {
-                                self.tcx()
-                                    .dcx()
-                                    .delayed_bug("feature error should be reported elsewhere, too");
-                            } else {
-                                feature_err(
-                                    &self.tcx().sess,
-                                    sym::generic_pattern_types,
-                                    self.span,
-                                    "wraparound pattern type ranges cause monomorphization time errors",
-                                )
-                                .emit();
-                            }
+                    if !tcx.features().generic_pattern_types() && c.has_param() {
+                        if self.span.is_dummy() {
+                            self.tcx()
+                                .dcx()
+                                .delayed_bug("feature error should be reported elsewhere, too");
+                        } else {
+                            feature_err(
+                                &self.tcx().sess,
+                                sym::generic_pattern_types,
+                                self.span,
+                                "wraparound pattern type ranges cause monomorphization time errors",
+                            )
+                            .emit();
                         }
                     }
                 };

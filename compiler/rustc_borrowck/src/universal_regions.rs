@@ -542,29 +542,26 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
 
         // C-variadic fns also have a `VaList` input that's not listed in the signature
         // (as it's created inside the body itself, not passed in from outside).
-        if let DefiningTy::FnDef(def_id, _) = defining_ty {
-            if self.infcx.tcx.fn_sig(def_id).skip_binder().c_variadic() {
-                let va_list_did = self
-                    .infcx
-                    .tcx
-                    .require_lang_item(LangItem::VaList, self.infcx.tcx.def_span(self.mir_def));
+        if let DefiningTy::FnDef(def_id, _) = defining_ty
+            && self.infcx.tcx.fn_sig(def_id).skip_binder().c_variadic()
+        {
+            let va_list_did = self
+                .infcx
+                .tcx
+                .require_lang_item(LangItem::VaList, self.infcx.tcx.def_span(self.mir_def));
 
-                let reg_vid = self
-                    .infcx
-                    .next_nll_region_var(FR, || RegionCtxt::Free(sym::c_dash_variadic))
-                    .as_var();
+            let reg_vid = self
+                .infcx
+                .next_nll_region_var(FR, || RegionCtxt::Free(sym::c_dash_variadic))
+                .as_var();
 
-                let region = ty::Region::new_var(self.infcx.tcx, reg_vid);
-                let va_list_ty = self
-                    .infcx
-                    .tcx
-                    .type_of(va_list_did)
-                    .instantiate(self.infcx.tcx, &[region.into()]);
+            let region = ty::Region::new_var(self.infcx.tcx, reg_vid);
+            let va_list_ty =
+                self.infcx.tcx.type_of(va_list_did).instantiate(self.infcx.tcx, &[region.into()]);
 
-                unnormalized_input_tys = self.infcx.tcx.mk_type_list_from_iter(
-                    unnormalized_input_tys.iter().copied().chain(iter::once(va_list_ty)),
-                );
-            }
+            unnormalized_input_tys = self.infcx.tcx.mk_type_list_from_iter(
+                unnormalized_input_tys.iter().copied().chain(iter::once(va_list_ty)),
+            );
         }
 
         let fr_fn_body =

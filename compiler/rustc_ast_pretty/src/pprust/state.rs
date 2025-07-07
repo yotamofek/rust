@@ -564,10 +564,10 @@ pub trait PrintState<'a>: std::ops::Deref<Target = pp::Printer> + std::ops::Dere
     }
 
     fn maybe_print_trailing_comment(&mut self, span: rustc_span::Span, next_pos: Option<BytePos>) {
-        if let Some(cmnts) = self.comments_mut() {
-            if let Some(cmnt) = cmnts.trailing_comment(span, next_pos) {
-                self.print_comment(cmnt);
-            }
+        if let Some(cmnts) = self.comments_mut()
+            && let Some(cmnt) = cmnts.trailing_comment(span, next_pos)
+        {
+            self.print_comment(cmnt);
         }
     }
 
@@ -623,13 +623,11 @@ pub trait PrintState<'a>: std::ops::Deref<Target = pp::Printer> + std::ops::Dere
     ) -> bool {
         let mut printed = false;
         for attr in attrs {
-            if attr.style == kind {
-                if self.print_attribute_inline(attr, is_inline) {
-                    if is_inline {
-                        self.nbsp();
-                    }
-                    printed = true;
+            if attr.style == kind && self.print_attribute_inline(attr, is_inline) {
+                if is_inline {
+                    self.nbsp();
                 }
+                printed = true;
             }
         }
         if printed && trailing_hardbreak && !is_inline {
@@ -769,10 +767,11 @@ pub trait PrintState<'a>: std::ops::Deref<Target = pp::Printer> + std::ops::Dere
         let mut iter = tts.iter().peekable();
         while let Some(tt) = iter.next() {
             let spacing = self.print_tt(tt, convert_dollar_crate);
-            if let Some(next) = iter.peek() {
-                if spacing == Spacing::Alone && space_between(tt, next) {
-                    self.space();
-                }
+            if let Some(next) = iter.peek()
+                && spacing == Spacing::Alone
+                && space_between(tt, next)
+            {
+                self.space();
             }
         }
     }
@@ -923,15 +922,14 @@ pub trait PrintState<'a>: std::ops::Deref<Target = pp::Printer> + std::ops::Dere
     fn break_offset_if_not_bol(&mut self, n: usize, off: isize) {
         if !self.is_beginning_of_line() {
             self.break_offset(n, off)
-        } else if off != 0 {
-            if let Some(last_token) = self.last_token_still_buffered() {
-                if last_token.is_hardbreak_tok() {
-                    // We do something pretty sketchy here: tuck the nonzero
-                    // offset-adjustment we were going to deposit along with the
-                    // break into the previous hardbreak.
-                    self.replace_last_token_still_buffered(pp::Printer::hardbreak_tok_offset(off));
-                }
-            }
+        } else if off != 0
+            && let Some(last_token) = self.last_token_still_buffered()
+            && last_token.is_hardbreak_tok()
+        {
+            // We do something pretty sketchy here: tuck the nonzero
+            // offset-adjustment we were going to deposit along with the
+            // break into the previous hardbreak.
+            self.replace_last_token_still_buffered(pp::Printer::hardbreak_tok_offset(off));
         }
     }
 

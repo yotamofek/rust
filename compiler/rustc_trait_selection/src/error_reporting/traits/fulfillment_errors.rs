@@ -72,15 +72,13 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                 if let ObligationCauseCode::WellFormed(Some(wf_loc)) =
                     root_obligation.cause.code().peel_derives()
                     && !obligation.predicate.has_non_region_infer()
-                {
-                    if let Some(cause) = self
+                    && let Some(cause) = self
                         .tcx
                         .diagnostic_hir_wf_check((tcx.erase_regions(obligation.predicate), *wf_loc))
                     {
                         obligation.cause = cause.clone();
                         span = obligation.cause.span;
                     }
-                }
 
                 if let ObligationCauseCode::CompareImplItem {
                     impl_item_def_id,
@@ -353,8 +351,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
 
                         if let ObligationCauseCode::Coercion { source, target } =
                             *obligation.cause.code().peel_derives()
-                        {
-                            if self.tcx.is_lang_item(leaf_trait_predicate.def_id(), LangItem::Sized) {
+                            && self.tcx.is_lang_item(leaf_trait_predicate.def_id(), LangItem::Sized) {
                                 self.suggest_borrowing_for_object_cast(
                                     &mut err,
                                     root_obligation,
@@ -362,7 +359,6 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                                     target,
                                 );
                             }
-                        }
 
                         let UnsatisfiedConst(unsatisfied_const) = self
                             .maybe_add_note_for_unsatisfied_const(
@@ -751,13 +747,13 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
         let mut base_cause = obligation.cause.code().clone();
         let mut applied_do_not_recommend = false;
         loop {
-            if let ObligationCauseCode::ImplDerived(ref c) = base_cause {
-                if self.tcx.do_not_recommend_impl(c.impl_or_alias_def_id) {
-                    let code = (*c.derived.parent_code).clone();
-                    obligation.cause.map_code(|_| code);
-                    obligation.predicate = c.derived.parent_trait_pred.upcast(self.tcx);
-                    applied_do_not_recommend = true;
-                }
+            if let ObligationCauseCode::ImplDerived(ref c) = base_cause
+                && self.tcx.do_not_recommend_impl(c.impl_or_alias_def_id)
+            {
+                let code = (*c.derived.parent_code).clone();
+                obligation.cause.map_code(|_| code);
+                obligation.predicate = c.derived.parent_trait_pred.upcast(self.tcx);
+                applied_do_not_recommend = true;
             }
             if let Some(parent_cause) = base_cause.parent() {
                 base_cause = parent_cause.clone();
@@ -3176,20 +3172,20 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                 );
             }
 
-            if let &[ArgKind::Tuple(_, ref fields)] = &found_args[..] {
-                if fields.len() == expected_args.len() {
-                    let sugg = fields
-                        .iter()
-                        .map(|(name, _)| name.to_owned())
-                        .collect::<Vec<String>>()
-                        .join(", ");
-                    err.span_suggestion_verbose(
-                        found_span,
-                        "change the closure to take multiple arguments instead of a single tuple",
-                        format!("|{sugg}|"),
-                        Applicability::MachineApplicable,
-                    );
-                }
+            if let &[ArgKind::Tuple(_, ref fields)] = &found_args[..]
+                && fields.len() == expected_args.len()
+            {
+                let sugg = fields
+                    .iter()
+                    .map(|(name, _)| name.to_owned())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                err.span_suggestion_verbose(
+                    found_span,
+                    "change the closure to take multiple arguments instead of a single tuple",
+                    format!("|{sugg}|"),
+                    Applicability::MachineApplicable,
+                );
             }
             if let &[ArgKind::Tuple(_, ref fields)] = &expected_args[..]
                 && fields.len() == found_args.len()

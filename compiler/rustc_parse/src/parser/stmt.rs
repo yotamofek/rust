@@ -423,17 +423,17 @@ impl<'a> Parser<'a> {
     }
 
     fn check_let_else_init_bool_expr(&self, init: &ast::Expr) {
-        if let ast::ExprKind::Binary(op, ..) = init.kind {
-            if op.node.is_lazy() {
-                self.dcx().emit_err(errors::InvalidExpressionInLetElse {
-                    span: init.span,
-                    operator: op.node.as_str(),
-                    sugg: errors::WrapInParentheses::Expression {
-                        left: init.span.shrink_to_lo(),
-                        right: init.span.shrink_to_hi(),
-                    },
-                });
-            }
+        if let ast::ExprKind::Binary(op, ..) = init.kind
+            && op.node.is_lazy()
+        {
+            self.dcx().emit_err(errors::InvalidExpressionInLetElse {
+                span: init.span,
+                operator: op.node.as_str(),
+                sugg: errors::WrapInParentheses::Expression {
+                    left: init.span.shrink_to_lo(),
+                    right: init.span.shrink_to_hi(),
+                },
+            });
         }
     }
 

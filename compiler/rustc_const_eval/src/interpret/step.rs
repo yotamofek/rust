@@ -62,10 +62,10 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
 
         let terminator = basic_block.terminator();
         self.eval_terminator(terminator)?;
-        if !self.stack().is_empty() {
-            if let Either::Left(loc) = self.frame().loc {
-                info!("// executing {:?}", loc.block);
-            }
+        if !self.stack().is_empty()
+            && let Either::Left(loc) = self.frame().loc
+        {
+            info!("// executing {:?}", loc.block);
         }
         interp_ok(true)
     }

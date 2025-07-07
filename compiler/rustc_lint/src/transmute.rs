@@ -117,17 +117,17 @@ fn check_ptr_transmute_in_const<'tcx>(
     src: Ty<'tcx>,
     dst: Ty<'tcx>,
 ) {
-    if matches!(const_context, Some(hir::ConstContext::ConstFn))
-        || matches!(cx.tcx.def_kind(body_owner_def_id), DefKind::AssocConst)
+    if (matches!(const_context, Some(hir::ConstContext::ConstFn))
+        || matches!(cx.tcx.def_kind(body_owner_def_id), DefKind::AssocConst))
+        && src.is_raw_ptr()
+        && dst.is_integral()
     {
-        if src.is_raw_ptr() && dst.is_integral() {
-            cx.tcx.emit_node_span_lint(
-                PTR_TO_INTEGER_TRANSMUTE_IN_CONSTS,
-                expr.hir_id,
-                expr.span,
-                UndefinedTransmuteLint,
-            );
-        }
+        cx.tcx.emit_node_span_lint(
+            PTR_TO_INTEGER_TRANSMUTE_IN_CONSTS,
+            expr.hir_id,
+            expr.span,
+            UndefinedTransmuteLint,
+        );
     }
 }
 

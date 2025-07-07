@@ -432,10 +432,10 @@ impl<T> Channel<T> {
                 }
             }
 
-            if let Some(d) = deadline {
-                if Instant::now() >= d {
-                    return Err(RecvTimeoutError::Timeout);
-                }
+            if let Some(d) = deadline
+                && Instant::now() >= d
+            {
+                return Err(RecvTimeoutError::Timeout);
             }
 
             // Prepare for blocking until a sender wakes us up.

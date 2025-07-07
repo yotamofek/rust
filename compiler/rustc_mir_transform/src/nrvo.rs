@@ -143,12 +143,11 @@ fn find_local_assigned_to_return_place(start: BasicBlock, body: &mir::Body<'_>) 
 // If this statement is an assignment of an unprojected local to the return place,
 // return that local.
 fn as_local_assigned_to_return_place(stmt: &mir::Statement<'_>) -> Option<Local> {
-    if let mir::StatementKind::Assign(box (lhs, rhs)) = &stmt.kind {
-        if lhs.as_local() == Some(mir::RETURN_PLACE) {
-            if let mir::Rvalue::Use(mir::Operand::Copy(rhs) | mir::Operand::Move(rhs)) = rhs {
-                return rhs.as_local();
-            }
-        }
+    if let mir::StatementKind::Assign(box (lhs, rhs)) = &stmt.kind
+        && lhs.as_local() == Some(mir::RETURN_PLACE)
+        && let mir::Rvalue::Use(mir::Operand::Copy(rhs) | mir::Operand::Move(rhs)) = rhs
+    {
+        return rhs.as_local();
     }
 
     None
@@ -178,11 +177,10 @@ impl<'tcx> MutVisitor<'tcx> for RenameToReturnPlace<'tcx> {
         //     StorageLive(_1)
         if let mir::StatementKind::StorageLive(local) | mir::StatementKind::StorageDead(local) =
             stmt.kind
+            && local == self.to_rename
         {
-            if local == self.to_rename {
-                stmt.kind = mir::StatementKind::Nop;
-                return;
-            }
+            stmt.kind = mir::StatementKind::Nop;
+            return;
         }
 
         self.super_statement(stmt, loc)

@@ -482,16 +482,13 @@ fn resolve_local<'tcx>(
     if let Some(expr) = init {
         record_rvalue_scope_if_borrow_expr(visitor, expr, visitor.cx.var_parent);
 
-        if let Some(pat) = pat {
-            if is_binding_pat(pat) {
-                visitor.scope_tree.record_rvalue_candidate(
-                    expr.hir_id,
-                    RvalueCandidate {
-                        target: expr.hir_id.local_id,
-                        lifetime: visitor.cx.var_parent,
-                    },
-                );
-            }
+        if let Some(pat) = pat
+            && is_binding_pat(pat)
+        {
+            visitor.scope_tree.record_rvalue_candidate(
+                expr.hir_id,
+                RvalueCandidate { target: expr.hir_id.local_id, lifetime: visitor.cx.var_parent },
+            );
         }
     }
 

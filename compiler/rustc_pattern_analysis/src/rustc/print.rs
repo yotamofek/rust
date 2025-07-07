@@ -105,11 +105,11 @@ pub(crate) fn write_struct_like<'tcx>(
             write!(f, "{}", start_or_comma())?;
 
             // Common case: the field is where we expect it.
-            if let Some(p) = subpatterns.get(i) {
-                if p.field.index() == i {
-                    write!(f, "{}", p.pattern)?;
-                    continue;
-                }
+            if let Some(p) = subpatterns.get(i)
+                && p.field.index() == i
+            {
+                write!(f, "{}", p.pattern)?;
+                continue;
             }
 
             // Otherwise, we have to go looking for it.

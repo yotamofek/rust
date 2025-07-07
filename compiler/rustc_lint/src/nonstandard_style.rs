@@ -622,17 +622,10 @@ impl<'tcx> LateLintPass<'tcx> for NonUpperCaseGlobals {
             kind: PatExprKind::Path(hir::QPath::Resolved(None, path)),
             ..
         }) = p.kind
+            && let Res::Def(DefKind::Const, _) = path.res
+            && let [segment] = path.segments
         {
-            if let Res::Def(DefKind::Const, _) = path.res {
-                if let [segment] = path.segments {
-                    NonUpperCaseGlobals::check_upper_case(
-                        cx,
-                        "constant in pattern",
-                        None,
-                        &segment.ident,
-                    );
-                }
-            }
+            NonUpperCaseGlobals::check_upper_case(cx, "constant in pattern", None, &segment.ident);
         }
     }
 

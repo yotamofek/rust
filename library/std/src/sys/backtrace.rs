@@ -74,19 +74,19 @@ unsafe fn _print_fmt(fmt: &mut fmt::Formatter<'_>, print_fmt: PrintFmt) -> fmt::
 
                 // `__rust_end_short_backtrace` means we are done hiding symbols
                 // for now. Print until we see `__rust_begin_short_backtrace`.
-                if print_fmt == PrintFmt::Short {
-                    if let Some(sym) = symbol.name().and_then(|s| s.as_str()) {
-                        if sym.contains("__rust_end_short_backtrace") {
-                            print = true;
-                            return;
-                        }
-                        if print && sym.contains("__rust_begin_short_backtrace") {
-                            print = false;
-                            return;
-                        }
-                        if !print {
-                            omitted_count += 1;
-                        }
+                if print_fmt == PrintFmt::Short
+                    && let Some(sym) = symbol.name().and_then(|s| s.as_str())
+                {
+                    if sym.contains("__rust_end_short_backtrace") {
+                        print = true;
+                        return;
+                    }
+                    if print && sym.contains("__rust_begin_short_backtrace") {
+                        print = false;
+                        return;
+                    }
+                    if !print {
+                        omitted_count += 1;
                     }
                 }
 
@@ -200,14 +200,13 @@ pub fn output_filename(
         #[cfg(not(windows))]
         BytesOrWideString::Wide(_wide) => Path::new("<unknown>").into(),
     };
-    if print_fmt == PrintFmt::Short && file.is_absolute() {
-        if let Some(cwd) = cwd {
-            if let Ok(stripped) = file.strip_prefix(&cwd) {
-                if let Some(s) = stripped.to_str() {
-                    return write!(fmt, ".{}{s}", path::MAIN_SEPARATOR);
-                }
-            }
-        }
+    if print_fmt == PrintFmt::Short
+        && file.is_absolute()
+        && let Some(cwd) = cwd
+        && let Ok(stripped) = file.strip_prefix(&cwd)
+        && let Some(s) = stripped.to_str()
+    {
+        return write!(fmt, ".{}{s}", path::MAIN_SEPARATOR);
     }
     fmt::Display::fmt(&file.display(), fmt)
 }

@@ -822,10 +822,10 @@ impl<'tcx> RegionInferenceContext<'tcx> {
                 continue;
             }
 
-            if let Some(propagated_outlives_requirements) = &mut propagated_outlives_requirements {
-                if self.try_promote_type_test(infcx, type_test, propagated_outlives_requirements) {
-                    continue;
-                }
+            if let Some(propagated_outlives_requirements) = &mut propagated_outlives_requirements
+                && self.try_promote_type_test(infcx, type_test, propagated_outlives_requirements)
+            {
+                continue;
             }
 
             // Type-test failed. Report the error.

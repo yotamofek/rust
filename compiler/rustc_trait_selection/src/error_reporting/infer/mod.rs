@@ -1792,7 +1792,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                         }
                         (false, _) => DiagStyledString::normal(""),
                     };
-                    if !(values.expected.is_simple_text() && values.found.is_simple_text())
+                    if (!(values.expected.is_simple_text() && values.found.is_simple_text())
                         || (exp_found.is_some_and(|ef| {
                             // This happens when the type error is a subset of the expectation,
                             // like when you have two references but one is `usize` and the other
@@ -1805,26 +1805,24 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                             } else {
                                 false
                             }
-                        }))
+                        })))
+                        && let Some(ExpectedFound { found: found_ty, .. }) = exp_found
+                        && !self.tcx.ty_is_opaque_future(found_ty)
                     {
-                        if let Some(ExpectedFound { found: found_ty, .. }) = exp_found
-                            && !self.tcx.ty_is_opaque_future(found_ty)
-                        {
-                            // `Future` is a special opaque type that the compiler
-                            // will try to hide in some case such as `async fn`, so
-                            // to make an error more use friendly we will
-                            // avoid to suggest a mismatch type with a
-                            // type that the user usually are not using
-                            // directly such as `impl Future<Output = u8>`.
-                            diag.note_expected_found_extra(
-                                &expected_label,
-                                expected,
-                                &found_label,
-                                found,
-                                sort_string(values.expected),
-                                sort_string(values.found),
-                            );
-                        }
+                        // `Future` is a special opaque type that the compiler
+                        // will try to hide in some case such as `async fn`, so
+                        // to make an error more use friendly we will
+                        // avoid to suggest a mismatch type with a
+                        // type that the user usually are not using
+                        // directly such as `impl Future<Output = u8>`.
+                        diag.note_expected_found_extra(
+                            &expected_label,
+                            expected,
+                            &found_label,
+                            found,
+                            sort_string(values.expected),
+                            sort_string(values.found),
+                        );
                     }
                 }
                 _ => {

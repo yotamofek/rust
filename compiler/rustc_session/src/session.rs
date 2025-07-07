@@ -776,15 +776,8 @@ impl Session {
 
     pub fn must_emit_unwind_tables(&self) -> bool {
         // This is used to control the emission of the `uwtable` attribute on
-        // LLVM functions. The `uwtable` attribute according to LLVM is:
+        // LLVM functions.
         //
-        //     This attribute indicates that the ABI being targeted requires that an
-        //     unwind table entry be produced for this function even if we can show
-        //     that no exceptions passes by it. This is normally the case for the
-        //     ELF x86-64 abi, but it can be disabled for some compilation units.
-        //
-        // Typically when we're compiling with `-C panic=abort` we don't need
-        // `uwtable` because we can't generate any exceptions!
         // Unwind tables are needed when compiling with `-C panic=unwind`, but
         // LLVM won't omit unwind tables unless the function is also marked as
         // `nounwind`, so users are allowed to disable `uwtable` emission.
@@ -1190,24 +1183,25 @@ fn validate_commandline_args_with_session_available(sess: &Session) {
 
     // Make sure that any given profiling data actually exists so LLVM can't
     // decide to silently skip PGO.
-    if let Some(ref path) = sess.opts.cg.profile_use {
-        if !path.exists() {
-            sess.dcx().emit_err(errors::ProfileUseFileDoesNotExist { path });
-        }
+    if let Some(ref path) = sess.opts.cg.profile_use
+        && !path.exists()
+    {
+        sess.dcx().emit_err(errors::ProfileUseFileDoesNotExist { path });
     }
 
     // Do the same for sample profile data.
-    if let Some(ref path) = sess.opts.unstable_opts.profile_sample_use {
-        if !path.exists() {
-            sess.dcx().emit_err(errors::ProfileSampleUseFileDoesNotExist { path });
-        }
+    if let Some(ref path) = sess.opts.unstable_opts.profile_sample_use
+        && !path.exists()
+    {
+        sess.dcx().emit_err(errors::ProfileSampleUseFileDoesNotExist { path });
     }
 
     // Unwind tables cannot be disabled if the target requires them.
-    if let Some(include_uwtables) = sess.opts.cg.force_unwind_tables {
-        if sess.target.requires_uwtable && !include_uwtables {
-            sess.dcx().emit_err(errors::TargetRequiresUnwindTables);
-        }
+    if let Some(include_uwtables) = sess.opts.cg.force_unwind_tables
+        && sess.target.requires_uwtable
+        && !include_uwtables
+    {
+        sess.dcx().emit_err(errors::TargetRequiresUnwindTables);
     }
 
     // Sanitizers can only be used on platforms that we know have working sanitizer codegen.
@@ -1268,10 +1262,8 @@ fn validate_commandline_args_with_session_available(sess: &Session) {
     }
 
     // Canonical jump tables requires CFI.
-    if sess.is_sanitizer_cfi_canonical_jump_tables_disabled() {
-        if !sess.is_sanitizer_cfi_enabled() {
-            sess.dcx().emit_err(errors::SanitizerCfiCanonicalJumpTablesRequiresCfi);
-        }
+    if sess.is_sanitizer_cfi_canonical_jump_tables_disabled() && !sess.is_sanitizer_cfi_enabled() {
+        sess.dcx().emit_err(errors::SanitizerCfiCanonicalJumpTablesRequiresCfi);
     }
 
     // KCFI arity indicator requires KCFI.
@@ -1280,17 +1272,17 @@ fn validate_commandline_args_with_session_available(sess: &Session) {
     }
 
     // LLVM CFI pointer generalization requires CFI or KCFI.
-    if sess.is_sanitizer_cfi_generalize_pointers_enabled() {
-        if !(sess.is_sanitizer_cfi_enabled() || sess.is_sanitizer_kcfi_enabled()) {
-            sess.dcx().emit_err(errors::SanitizerCfiGeneralizePointersRequiresCfi);
-        }
+    if sess.is_sanitizer_cfi_generalize_pointers_enabled()
+        && !(sess.is_sanitizer_cfi_enabled() || sess.is_sanitizer_kcfi_enabled())
+    {
+        sess.dcx().emit_err(errors::SanitizerCfiGeneralizePointersRequiresCfi);
     }
 
     // LLVM CFI integer normalization requires CFI or KCFI.
-    if sess.is_sanitizer_cfi_normalize_integers_enabled() {
-        if !(sess.is_sanitizer_cfi_enabled() || sess.is_sanitizer_kcfi_enabled()) {
-            sess.dcx().emit_err(errors::SanitizerCfiNormalizeIntegersRequiresCfi);
-        }
+    if sess.is_sanitizer_cfi_normalize_integers_enabled()
+        && !(sess.is_sanitizer_cfi_enabled() || sess.is_sanitizer_kcfi_enabled())
+    {
+        sess.dcx().emit_err(errors::SanitizerCfiNormalizeIntegersRequiresCfi);
     }
 
     // LTO unit splitting requires LTO.
@@ -1303,27 +1295,25 @@ fn validate_commandline_args_with_session_available(sess: &Session) {
     }
 
     // VFE requires LTO.
-    if sess.lto() != config::Lto::Fat {
-        if sess.opts.unstable_opts.virtual_function_elimination {
-            sess.dcx().emit_err(errors::UnstableVirtualFunctionElimination);
-        }
+    if sess.lto() != config::Lto::Fat && sess.opts.unstable_opts.virtual_function_elimination {
+        sess.dcx().emit_err(errors::UnstableVirtualFunctionElimination);
     }
 
-    if sess.opts.unstable_opts.stack_protector != StackProtector::None {
-        if !sess.target.options.supports_stack_protector {
-            sess.dcx().emit_warn(errors::StackProtectorNotSupportedForTarget {
-                stack_protector: sess.opts.unstable_opts.stack_protector,
-                target_triple: &sess.opts.target_triple,
-            });
-        }
+    if sess.opts.unstable_opts.stack_protector != StackProtector::None
+        && !sess.target.options.supports_stack_protector
+    {
+        sess.dcx().emit_warn(errors::StackProtectorNotSupportedForTarget {
+            stack_protector: sess.opts.unstable_opts.stack_protector,
+            target_triple: &sess.opts.target_triple,
+        });
     }
 
-    if sess.opts.unstable_opts.small_data_threshold.is_some() {
-        if sess.target.small_data_threshold_support() == SmallDataThresholdSupport::None {
-            sess.dcx().emit_warn(errors::SmallDataThresholdNotSupportedForTarget {
-                target_triple: &sess.opts.target_triple,
-            })
-        }
+    if sess.opts.unstable_opts.small_data_threshold.is_some()
+        && sess.target.small_data_threshold_support() == SmallDataThresholdSupport::None
+    {
+        sess.dcx().emit_warn(errors::SmallDataThresholdNotSupportedForTarget {
+            target_triple: &sess.opts.target_triple,
+        })
     }
 
     if sess.opts.unstable_opts.branch_protection.is_some() && sess.target.arch != "aarch64" {
@@ -1362,17 +1352,18 @@ fn validate_commandline_args_with_session_available(sess: &Session) {
         sess.dcx().emit_err(errors::InstrumentationNotSupported { us: "XRay".to_string() });
     }
 
-    if let Some(flavor) = sess.opts.cg.linker_flavor {
-        if let Some(compatible_list) = sess.target.linker_flavor.check_compatibility(flavor) {
-            let flavor = flavor.desc();
-            sess.dcx().emit_err(errors::IncompatibleLinkerFlavor { flavor, compatible_list });
-        }
+    if let Some(flavor) = sess.opts.cg.linker_flavor
+        && let Some(compatible_list) = sess.target.linker_flavor.check_compatibility(flavor)
+    {
+        let flavor = flavor.desc();
+        sess.dcx().emit_err(errors::IncompatibleLinkerFlavor { flavor, compatible_list });
     }
 
-    if sess.opts.unstable_opts.function_return != FunctionReturn::default() {
-        if sess.target.arch != "x86" && sess.target.arch != "x86_64" {
-            sess.dcx().emit_err(errors::FunctionReturnRequiresX86OrX8664);
-        }
+    if sess.opts.unstable_opts.function_return != FunctionReturn::default()
+        && sess.target.arch != "x86"
+        && sess.target.arch != "x86_64"
+    {
+        sess.dcx().emit_err(errors::FunctionReturnRequiresX86OrX8664);
     }
 
     if let Some(regparm) = sess.opts.unstable_opts.regparm {
@@ -1383,10 +1374,8 @@ fn validate_commandline_args_with_session_available(sess: &Session) {
             sess.dcx().emit_err(errors::UnsupportedRegparmArch);
         }
     }
-    if sess.opts.unstable_opts.reg_struct_return {
-        if sess.target.arch != "x86" {
-            sess.dcx().emit_err(errors::UnsupportedRegStructReturnArch);
-        }
+    if sess.opts.unstable_opts.reg_struct_return && sess.target.arch != "x86" {
+        sess.dcx().emit_err(errors::UnsupportedRegStructReturnArch);
     }
 
     // The code model check applies to `thunk` and `thunk-extern`, but not `thunk-inline`, so it is

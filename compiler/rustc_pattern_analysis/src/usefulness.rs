@@ -760,10 +760,11 @@ impl<'p, Cx: PatCx> BranchPatUsefulness<'p, Cx> {
         // sufficient to build a covering set.
         for row_id in row.intersects_at_least.iter() {
             let row = &matrix.rows[row_id];
-            if row.useful && !row.is_under_guard {
-                if let PatOrWild::Pat(intersecting) = row.head() {
-                    self.covered_by.insert(intersecting);
-                }
+            if row.useful
+                && !row.is_under_guard
+                && let PatOrWild::Pat(intersecting) = row.head()
+            {
+                self.covered_by.insert(intersecting);
             }
         }
     }
@@ -1759,13 +1760,12 @@ fn compute_exhaustiveness_and_usefulness<'a, 'p, Cx: PatCx>(
         ret.extend(witnesses);
 
         // Detect ranges that overlap on their endpoints.
-        if let Constructor::IntRange(overlap_range) = ctor {
-            if overlap_range.is_singleton()
-                && spec_matrix.rows.len() >= 2
-                && spec_matrix.rows.iter().any(|row| !row.intersects_at_least.is_empty())
-            {
-                collect_overlapping_range_endpoints(mcx.tycx, overlap_range, matrix, &spec_matrix);
-            }
+        if let Constructor::IntRange(overlap_range) = ctor
+            && overlap_range.is_singleton()
+            && spec_matrix.rows.len() >= 2
+            && spec_matrix.rows.iter().any(|row| !row.intersects_at_least.is_empty())
+        {
+            collect_overlapping_range_endpoints(mcx.tycx, overlap_range, matrix, &spec_matrix);
         }
 
         matrix.unspecialize(spec_matrix);
@@ -1774,20 +1774,20 @@ fn compute_exhaustiveness_and_usefulness<'a, 'p, Cx: PatCx>(
     // Detect singleton gaps between ranges.
     if missing_ctors.iter().any(|c| matches!(c, Constructor::IntRange(..))) {
         for missing in &missing_ctors {
-            if let Constructor::IntRange(gap) = missing {
-                if gap.is_singleton() {
-                    collect_non_contiguous_range_endpoints(mcx.tycx, gap, matrix);
-                }
+            if let Constructor::IntRange(gap) = missing
+                && gap.is_singleton()
+            {
+                collect_non_contiguous_range_endpoints(mcx.tycx, gap, matrix);
             }
         }
     }
 
     // Record usefulness of the branch patterns.
     for row in matrix.rows() {
-        if row.head_is_branch {
-            if let PatOrWild::Pat(pat) = row.head() {
-                mcx.branch_usefulness.entry(pat.uid).or_default().update(row, matrix);
-            }
+        if row.head_is_branch
+            && let PatOrWild::Pat(pat) = row.head()
+        {
+            mcx.branch_usefulness.entry(pat.uid).or_default().update(row, matrix);
         }
     }
 

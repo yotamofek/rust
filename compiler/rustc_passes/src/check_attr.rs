@@ -391,24 +391,23 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
 
             let builtin = attr.ident().and_then(|ident| BUILTIN_ATTRIBUTE_MAP.get(&ident.name));
 
-            if hir_id != CRATE_HIR_ID {
-                if let Some(BuiltinAttribute { type_: AttributeType::CrateLevel, .. }) =
+            if hir_id != CRATE_HIR_ID
+                && let Some(BuiltinAttribute { type_: AttributeType::CrateLevel, .. }) =
                     attr.ident().and_then(|ident| BUILTIN_ATTRIBUTE_MAP.get(&ident.name))
-                {
-                    match style {
-                        Some(ast::AttrStyle::Outer) => self.tcx.emit_node_span_lint(
-                            UNUSED_ATTRIBUTES,
-                            hir_id,
-                            attr.span(),
-                            errors::OuterCrateLevelAttr,
-                        ),
-                        Some(ast::AttrStyle::Inner) | None => self.tcx.emit_node_span_lint(
-                            UNUSED_ATTRIBUTES,
-                            hir_id,
-                            attr.span(),
-                            errors::InnerCrateLevelAttr,
-                        ),
-                    }
+            {
+                match style {
+                    Some(ast::AttrStyle::Outer) => self.tcx.emit_node_span_lint(
+                        UNUSED_ATTRIBUTES,
+                        hir_id,
+                        attr.span(),
+                        errors::OuterCrateLevelAttr,
+                    ),
+                    Some(ast::AttrStyle::Inner) | None => self.tcx.emit_node_span_lint(
+                        UNUSED_ATTRIBUTES,
+                        hir_id,
+                        attr.span(),
+                        errors::InnerCrateLevelAttr,
+                    ),
                 }
             }
 

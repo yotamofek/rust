@@ -61,11 +61,10 @@ impl<'tcx> Visitor<'tcx> for CheckParameters<'tcx> {
             _,
             hir::Path { res: hir::def::Res::Local(var_hir_id), .. },
         )) = expr.kind
+            && self.params.contains(var_hir_id)
         {
-            if self.params.contains(var_hir_id) {
-                self.tcx.dcx().emit_err(ParamsNotAllowed { span: expr.span });
-                return;
-            }
+            self.tcx.dcx().emit_err(ParamsNotAllowed { span: expr.span });
+            return;
         }
         hir::intravisit::walk_expr(self, expr);
     }

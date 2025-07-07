@@ -752,11 +752,11 @@ impl Duration {
         let extra_secs = total_nanos / (NANOS_PER_SEC as u64);
         let nanos = (total_nanos % (NANOS_PER_SEC as u64)) as u32;
         // FIXME(const-hack): use `and_then` once that is possible.
-        if let Some(s) = self.secs.checked_mul(rhs as u64) {
-            if let Some(secs) = s.checked_add(extra_secs) {
-                debug_assert!(nanos < NANOS_PER_SEC);
-                return Some(Duration::new(secs, nanos));
-            }
+        if let Some(s) = self.secs.checked_mul(rhs as u64)
+            && let Some(secs) = s.checked_add(extra_secs)
+        {
+            debug_assert!(nanos < NANOS_PER_SEC);
+            return Some(Duration::new(secs, nanos));
         }
         None
     }

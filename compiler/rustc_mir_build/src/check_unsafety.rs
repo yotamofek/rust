@@ -259,12 +259,11 @@ impl<'a, 'tcx> Visitor<'a, 'tcx> for LayoutConstrainedPlaceVisitor<'a, 'tcx> {
     fn visit_expr(&mut self, expr: &'a Expr<'tcx>) {
         match expr.kind {
             ExprKind::Field { lhs, .. } => {
-                if let ty::Adt(adt_def, _) = self.thir[lhs].ty.kind() {
-                    if (Bound::Unbounded, Bound::Unbounded)
+                if let ty::Adt(adt_def, _) = self.thir[lhs].ty.kind()
+                    && (Bound::Unbounded, Bound::Unbounded)
                         != self.tcx.layout_scalar_valid_range(adt_def.did())
-                    {
-                        self.found = true;
-                    }
+                {
+                    self.found = true;
                 }
                 visit::walk_expr(self, expr);
             }
@@ -512,36 +511,35 @@ impl<'a, 'tcx> Visitor<'a, 'tcx> for UnsafetyVisitor<'a, 'tcx> {
                         None
                     };
                     self.requires_unsafe(expr.span, CallToUnsafeFunction(func_id));
-                } else if let &ty::FnDef(func_did, _) = fn_ty.kind() {
-                    if !self
+                } else if let &ty::FnDef(func_did, _) = fn_ty.kind()
+                    && !self
                         .tcx
                         .is_target_feature_call_safe(callee_features, self.body_target_features)
-                    {
-                        let missing: Vec<_> = callee_features
-                            .iter()
-                            .copied()
-                            .filter(|feature| {
-                                !feature.implied
-                                    && !self
-                                        .body_target_features
-                                        .iter()
-                                        .any(|body_feature| body_feature.name == feature.name)
-                            })
-                            .map(|feature| feature.name)
-                            .collect();
-                        let build_enabled = self
-                            .tcx
-                            .sess
-                            .target_features
-                            .iter()
-                            .copied()
-                            .filter(|feature| missing.contains(feature))
-                            .collect();
-                        self.requires_unsafe(
-                            expr.span,
-                            CallToFunctionWith { function: func_did, missing, build_enabled },
-                        );
-                    }
+                {
+                    let missing: Vec<_> = callee_features
+                        .iter()
+                        .copied()
+                        .filter(|feature| {
+                            !feature.implied
+                                && !self
+                                    .body_target_features
+                                    .iter()
+                                    .any(|body_feature| body_feature.name == feature.name)
+                        })
+                        .map(|feature| feature.name)
+                        .collect();
+                    let build_enabled = self
+                        .tcx
+                        .sess
+                        .target_features
+                        .iter()
+                        .copied()
+                        .filter(|feature| missing.contains(feature))
+                        .collect();
+                    self.requires_unsafe(
+                        expr.span,
+                        CallToFunctionWith { function: func_did, missing, build_enabled },
+                    );
                 }
             }
             ExprKind::RawBorrow { arg, .. } => {

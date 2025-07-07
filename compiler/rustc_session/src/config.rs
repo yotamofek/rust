@@ -2213,13 +2213,13 @@ fn collect_print_requests(
         };
 
         let out = out.unwrap_or(OutFileName::Stdout);
-        if let OutFileName::Real(path) = &out {
-            if !printed_paths.insert(path.clone()) {
-                early_dcx.early_fatal(format!(
-                    "cannot print multiple outputs to the same path: {}",
-                    path.display(),
-                ));
-            }
+        if let OutFileName::Real(path) = &out
+            && !printed_paths.insert(path.clone())
+        {
+            early_dcx.early_fatal(format!(
+                "cannot print multiple outputs to the same path: {}",
+                path.display(),
+            ));
         }
 
         PrintRequest { kind, out }
@@ -2660,14 +2660,14 @@ pub fn build_session_options(early_dcx: &mut EarlyDiagCtxt, matches: &getopts::M
             );
         }
 
-        if let Some(flavor) = cg.linker_flavor {
-            if flavor.is_unstable() {
-                early_dcx.early_fatal(format!(
-                    "the linker flavor `{}` is unstable, the `-Z unstable-options` \
+        if let Some(flavor) = cg.linker_flavor
+            && flavor.is_unstable()
+        {
+            early_dcx.early_fatal(format!(
+                "the linker flavor `{}` is unstable, the `-Z unstable-options` \
                         flag must also be passed to use the unstable values",
-                    flavor.desc()
-                ));
-            }
+                flavor.desc()
+            ));
         }
     }
 
@@ -2743,10 +2743,10 @@ pub fn build_session_options(early_dcx: &mut EarlyDiagCtxt, matches: &getopts::M
             // Replace the symlink bootstrap creates, with its destination.
             // We could try to use `fs::canonicalize` instead, but that might
             // produce unnecessarily verbose path.
-            if metadata.file_type().is_symlink() {
-                if let Ok(symlink_dest) = std::fs::read_link(&candidate) {
-                    candidate = symlink_dest;
-                }
+            if metadata.file_type().is_symlink()
+                && let Ok(symlink_dest) = std::fs::read_link(&candidate)
+            {
+                candidate = symlink_dest;
             }
         }
 

@@ -370,12 +370,11 @@ impl<'a> CrateLocator<'a> {
             return self.find_commandline_library(crate_rejections);
         }
         let mut seen_paths = FxHashSet::default();
-        if let Some(extra_filename) = self.extra_filename {
-            if let library @ Some(_) =
+        if let Some(extra_filename) = self.extra_filename
+            && let library @ Some(_) =
                 self.find_library_crate(crate_rejections, extra_filename, &mut seen_paths)?
-            {
-                return Ok(library);
-            }
+        {
+            return Ok(library);
         }
         self.find_library_crate(crate_rejections, "", &mut seen_paths)
     }
@@ -589,10 +588,8 @@ impl<'a> CrateLocator<'a> {
         //
         // See also #68149 which provides more detail on why emitting the
         // dependency on the rlib is a bad thing.
-        if slot.is_some() {
-            if m.is_empty() || !self.needs_crate_flavor(flavor) {
-                return Ok(None);
-            }
+        if slot.is_some() && (m.is_empty() || !self.needs_crate_flavor(flavor)) {
+            return Ok(None);
         }
 
         let mut ret: Option<(PathBuf, PathKind)> = None;
@@ -755,14 +752,14 @@ impl<'a> CrateLocator<'a> {
         }
 
         let hash = header.hash;
-        if let Some(expected_hash) = self.hash {
-            if hash != expected_hash {
-                info!("Rejecting via hash: expected {} got {}", expected_hash, hash);
-                crate_rejections
-                    .via_hash
-                    .push(CrateMismatch { path: libpath.to_path_buf(), got: hash.to_string() });
-                return None;
-            }
+        if let Some(expected_hash) = self.hash
+            && hash != expected_hash
+        {
+            info!("Rejecting via hash: expected {} got {}", expected_hash, hash);
+            crate_rejections
+                .via_hash
+                .push(CrateMismatch { path: libpath.to_path_buf(), got: hash.to_string() });
+            return None;
         }
 
         Some(hash)

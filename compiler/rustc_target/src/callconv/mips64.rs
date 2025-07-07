@@ -6,15 +6,14 @@ use crate::callconv::{ArgAbi, ArgExtension, CastTarget, FnAbi, PassMode, Uniform
 
 fn extend_integer_width_mips<Ty>(arg: &mut ArgAbi<'_, Ty>, bits: u64) {
     // Always sign extend u32 values on 64-bit mips
-    if let BackendRepr::Scalar(scalar) = arg.layout.backend_repr {
-        if let Primitive::Int(i, signed) = scalar.primitive() {
-            if !signed && i.size().bits() == 32 {
-                if let PassMode::Direct(ref mut attrs) = arg.mode {
-                    attrs.ext(ArgExtension::Sext);
-                    return;
-                }
-            }
-        }
+    if let BackendRepr::Scalar(scalar) = arg.layout.backend_repr
+        && let Primitive::Int(i, signed) = scalar.primitive()
+        && !signed
+        && i.size().bits() == 32
+        && let PassMode::Direct(ref mut attrs) = arg.mode
+    {
+        attrs.ext(ArgExtension::Sext);
+        return;
     }
 
     arg.extend_integer_width_to(bits);
@@ -58,13 +57,12 @@ where
                     ret.cast_to(reg);
                     return;
                 }
-            } else if ret.layout.fields.count() == 2 {
-                if let Some(reg0) = float_reg(cx, ret, 0) {
-                    if let Some(reg1) = float_reg(cx, ret, 1) {
-                        ret.cast_to(CastTarget::pair(reg0, reg1));
-                        return;
-                    }
-                }
+            } else if ret.layout.fields.count() == 2
+                && let Some(reg0) = float_reg(cx, ret, 0)
+                && let Some(reg1) = float_reg(cx, ret, 1)
+            {
+                ret.cast_to(CastTarget::pair(reg0, reg1));
+                return;
             }
         }
 
@@ -110,27 +108,26 @@ where
                 let offset = arg.layout.fields.offset(i);
 
                 // We only care about aligned doubles
-                if let BackendRepr::Scalar(scalar) = field.backend_repr {
-                    if scalar.primitive() == Primitive::Float(Float::F64) {
-                        if offset.is_aligned(dl.f64_align.abi) {
-                            // Insert enough integers to cover [last_offset, offset)
-                            assert!(last_offset.is_aligned(dl.f64_align.abi));
-                            for _ in 0..((offset - last_offset).bits() / 64)
-                                .min((prefix.len() - prefix_index) as u64)
-                            {
-                                prefix[prefix_index] = Some(Reg::i64());
-                                prefix_index += 1;
-                            }
-
-                            if prefix_index == prefix.len() {
-                                break;
-                            }
-
-                            prefix[prefix_index] = Some(Reg::f64());
-                            prefix_index += 1;
-                            last_offset = offset + Reg::f64().size;
-                        }
+                if let BackendRepr::Scalar(scalar) = field.backend_repr
+                    && scalar.primitive() == Primitive::Float(Float::F64)
+                    && offset.is_aligned(dl.f64_align.abi)
+                {
+                    // Insert enough integers to cover [last_offset, offset)
+                    assert!(last_offset.is_aligned(dl.f64_align.abi));
+                    for _ in 0..((offset - last_offset).bits() / 64)
+                        .min((prefix.len() - prefix_index) as u64)
+                    {
+                        prefix[prefix_index] = Some(Reg::i64());
+                        prefix_index += 1;
                     }
+
+                    if prefix_index == prefix.len() {
+                        break;
+                    }
+
+                    prefix[prefix_index] = Some(Reg::f64());
+                    prefix_index += 1;
+                    last_offset = offset + Reg::f64().size;
                 }
             }
         }

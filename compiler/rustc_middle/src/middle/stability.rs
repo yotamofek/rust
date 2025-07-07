@@ -304,20 +304,19 @@ fn suggestion_for_allocator_api(
     span: Span,
     feature: Symbol,
 ) -> Option<(Span, String, String, Applicability)> {
-    if feature == sym::allocator_api {
-        if let Some(trait_) = tcx.opt_parent(def_id) {
-            if tcx.is_diagnostic_item(sym::Vec, trait_) {
-                let sm = tcx.sess.psess.source_map();
-                let inner_types = sm.span_extend_to_prev_char(span, '<', true);
-                if let Ok(snippet) = sm.span_to_snippet(inner_types) {
-                    return Some((
-                        inner_types,
-                        "consider wrapping the inner types in tuple".to_string(),
-                        format!("({snippet})"),
-                        Applicability::MaybeIncorrect,
-                    ));
-                }
-            }
+    if feature == sym::allocator_api
+        && let Some(trait_) = tcx.opt_parent(def_id)
+        && tcx.is_diagnostic_item(sym::Vec, trait_)
+    {
+        let sm = tcx.sess.psess.source_map();
+        let inner_types = sm.span_extend_to_prev_char(span, '<', true);
+        if let Ok(snippet) = sm.span_to_snippet(inner_types) {
+            return Some((
+                inner_types,
+                "consider wrapping the inner types in tuple".to_string(),
+                format!("({snippet})"),
+                Applicability::MaybeIncorrect,
+            ));
         }
     }
     None
@@ -371,24 +370,24 @@ impl<'tcx> TyCtxt<'tcx> {
         allow_unstable: AllowUnstable,
     ) -> EvalResult {
         // Deprecated attributes apply in-crate and cross-crate.
-        if let Some(id) = id {
-            if let Some(depr_entry) = self.lookup_deprecation_entry(def_id) {
-                let parent_def_id = self.hir_get_parent_item(id);
-                let skip = self
-                    .lookup_deprecation_entry(parent_def_id.to_def_id())
-                    .is_some_and(|parent_depr| parent_depr.same_origin(&depr_entry));
+        if let Some(id) = id
+            && let Some(depr_entry) = self.lookup_deprecation_entry(def_id)
+        {
+            let parent_def_id = self.hir_get_parent_item(id);
+            let skip = self
+                .lookup_deprecation_entry(parent_def_id.to_def_id())
+                .is_some_and(|parent_depr| parent_depr.same_origin(&depr_entry));
 
-                // #[deprecated] doesn't emit a notice if we're not on the
-                // topmost deprecation. For example, if a struct is deprecated,
-                // the use of a field won't be linted.
-                //
-                // With #![staged_api], we want to emit down the whole
-                // hierarchy.
-                let depr_attr = &depr_entry.attr;
-                if !skip || depr_attr.is_since_rustc_version() {
-                    late_report_deprecation(self, depr_attr, span, method_span, id, def_id);
-                }
-            };
+            // #[deprecated] doesn't emit a notice if we're not on the
+            // topmost deprecation. For example, if a struct is deprecated,
+            // the use of a field won't be linted.
+            //
+            // With #![staged_api], we want to emit down the whole
+            // hierarchy.
+            let depr_attr = &depr_entry.attr;
+            if !skip || depr_attr.is_since_rustc_version() {
+                late_report_deprecation(self, depr_attr, span, method_span, id, def_id);
+            }
         }
 
         let is_staged_api = self.lookup_stability(def_id.krate.as_def_id()).is_some();

@@ -271,10 +271,9 @@ impl str {
             Some(Utf8Pattern::StringPattern([from_byte])) => Some(*from_byte),
             Some(Utf8Pattern::CharPattern(c)) => c.as_ascii().map(|ascii_char| ascii_char.to_u8()),
             _ => None,
-        } {
-            if let [to_byte] = to.as_bytes() {
-                return unsafe { replace_ascii(self.as_bytes(), from_byte, *to_byte) };
-            }
+        } && let [to_byte] = to.as_bytes()
+        {
+            return unsafe { replace_ascii(self.as_bytes(), from_byte, *to_byte) };
         }
         // Set result capacity to self.len() when from.len() <= to.len()
         let default_capacity = match from.as_utf8_pattern() {

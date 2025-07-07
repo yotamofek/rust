@@ -182,10 +182,10 @@ impl<'a> Parser<'a> {
 
             parsed_something = true;
             self.bump();
-            if op.node.is_comparison() {
-                if let Some(expr) = self.check_no_chained_comparison(&lhs, &op)? {
-                    return Ok((expr, parsed_something));
-                }
+            if op.node.is_comparison()
+                && let Some(expr) = self.check_no_chained_comparison(&lhs, &op)?
+            {
+                return Ok((expr, parsed_something));
             }
 
             // Look for JS' `===` and `!==` and recover
@@ -2355,10 +2355,11 @@ impl<'a> Parser<'a> {
         lo: Span,
         blk_mode: BlockCheckMode,
     ) -> PResult<'a, P<Expr>> {
-        if self.may_recover() && self.is_array_like_block() {
-            if let Some(arr) = self.maybe_suggest_brackets_instead_of_braces(lo) {
-                return Ok(arr);
-            }
+        if self.may_recover()
+            && self.is_array_like_block()
+            && let Some(arr) = self.maybe_suggest_brackets_instead_of_braces(lo)
+        {
+            return Ok(arr);
         }
 
         if self.token.is_metavar_block() {

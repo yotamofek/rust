@@ -40,11 +40,9 @@ where
         return;
     }
 
-    if vfp {
-        if let Some(uniform) = is_homogeneous_aggregate(cx, ret) {
-            ret.cast_to(uniform);
-            return;
-        }
+    if vfp && let Some(uniform) = is_homogeneous_aggregate(cx, ret) {
+        ret.cast_to(uniform);
+        return;
     }
 
     let size = ret.layout.size;
@@ -70,11 +68,9 @@ where
         return;
     }
 
-    if vfp {
-        if let Some(uniform) = is_homogeneous_aggregate(cx, arg) {
-            arg.cast_to(uniform);
-            return;
-        }
+    if vfp && let Some(uniform) = is_homogeneous_aggregate(cx, arg) {
+        arg.cast_to(uniform);
+        return;
     }
 
     let align = arg.layout.align.abi.bytes();

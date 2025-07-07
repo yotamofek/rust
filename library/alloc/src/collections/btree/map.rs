@@ -3310,15 +3310,15 @@ impl<'a, K: Ord, V, A: Allocator + Clone> CursorMutKey<'a, K, V, A> {
     /// invalidate the [`Ord`] invariant between the keys of the map.
     #[unstable(feature = "btree_cursors", issue = "107540")]
     pub fn insert_after(&mut self, key: K, value: V) -> Result<(), UnorderedKeyError> {
-        if let Some((prev, _)) = self.peek_prev() {
-            if &key <= prev {
-                return Err(UnorderedKeyError {});
-            }
+        if let Some((prev, _)) = self.peek_prev()
+            && &key <= prev
+        {
+            return Err(UnorderedKeyError {});
         }
-        if let Some((next, _)) = self.peek_next() {
-            if &key >= next {
-                return Err(UnorderedKeyError {});
-            }
+        if let Some((next, _)) = self.peek_next()
+            && &key >= next
+        {
+            return Err(UnorderedKeyError {});
         }
         unsafe {
             self.insert_after_unchecked(key, value);
@@ -3338,15 +3338,15 @@ impl<'a, K: Ord, V, A: Allocator + Clone> CursorMutKey<'a, K, V, A> {
     /// invalidate the [`Ord`] invariant between the keys of the map.
     #[unstable(feature = "btree_cursors", issue = "107540")]
     pub fn insert_before(&mut self, key: K, value: V) -> Result<(), UnorderedKeyError> {
-        if let Some((prev, _)) = self.peek_prev() {
-            if &key <= prev {
-                return Err(UnorderedKeyError {});
-            }
+        if let Some((prev, _)) = self.peek_prev()
+            && &key <= prev
+        {
+            return Err(UnorderedKeyError {});
         }
-        if let Some((next, _)) = self.peek_next() {
-            if &key >= next {
-                return Err(UnorderedKeyError {});
-            }
+        if let Some((next, _)) = self.peek_next()
+            && &key >= next
+        {
+            return Err(UnorderedKeyError {});
         }
         unsafe {
             self.insert_before_unchecked(key, value);

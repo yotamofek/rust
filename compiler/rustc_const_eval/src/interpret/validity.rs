@@ -320,10 +320,10 @@ impl<'rt, 'tcx, M: Machine<'tcx>> ValidityVisitor<'rt, 'tcx, M> {
                         // for a coroutine).
                         let var_hir_id = captured_place.get_root_variable();
                         let node = self.ecx.tcx.hir_node(var_hir_id);
-                        if let hir::Node::Pat(pat) = node {
-                            if let hir::PatKind::Binding(_, _, ident, _) = pat.kind {
-                                name = Some(ident.name);
-                            }
+                        if let hir::Node::Pat(pat) = node
+                            && let hir::PatKind::Binding(_, _, ident, _) = pat.kind
+                        {
+                            name = Some(ident.name);
                         }
                     }
                 }
@@ -628,10 +628,10 @@ impl<'rt, 'tcx, M: Machine<'tcx>> ValidityVisitor<'rt, 'tcx, M> {
                             throw_validation_failure!(self.path, MutableRefToImmutable);
                         }
                         // In a const, any kind of mutable reference is not good.
-                        if matches!(self.ctfe_mode, Some(CtfeValidationMode::Const { .. })) {
-                            if ptr_expected_mutbl == Mutability::Mut {
-                                throw_validation_failure!(self.path, MutableRefInConst);
-                            }
+                        if matches!(self.ctfe_mode, Some(CtfeValidationMode::Const { .. }))
+                            && ptr_expected_mutbl == Mutability::Mut
+                        {
+                            throw_validation_failure!(self.path, MutableRefInConst);
                         }
                     }
                 }
@@ -1088,10 +1088,11 @@ impl<'rt, 'tcx, M: Machine<'tcx>> ValueVisitor<'tcx, M> for ValidityVisitor<'rt,
             // Unsized unions are currently not a thing, but let's keep this code consistent with
             // the check in `visit_value`.
             let zst = self.ecx.size_and_align_of_val(val)?.is_some_and(|(s, _a)| s.bytes() == 0);
-            if !zst && !val.layout.ty.is_freeze(*self.ecx.tcx, self.ecx.typing_env) {
-                if !self.in_mutable_memory(val) {
-                    throw_validation_failure!(self.path, UnsafeCellInImmutable);
-                }
+            if !zst
+                && !val.layout.ty.is_freeze(*self.ecx.tcx, self.ecx.typing_env)
+                && !self.in_mutable_memory(val)
+            {
+                throw_validation_failure!(self.path, UnsafeCellInImmutable);
             }
         }
         if self.reset_provenance_and_padding
@@ -1138,10 +1139,9 @@ impl<'rt, 'tcx, M: Machine<'tcx>> ValueVisitor<'tcx, M> for ValidityVisitor<'rt,
             if !zst
                 && let Some(def) = val.layout.ty.ty_adt_def()
                 && def.is_unsafe_cell()
+                && !self.in_mutable_memory(val)
             {
-                if !self.in_mutable_memory(val) {
-                    throw_validation_failure!(self.path, UnsafeCellInImmutable);
-                }
+                throw_validation_failure!(self.path, UnsafeCellInImmutable);
             }
         }
 

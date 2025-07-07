@@ -211,19 +211,19 @@ impl<'hir> Visitor<'hir> for CheckLoopVisitor<'hir> {
                 };
 
                 // A `#[const_continue]` must break to a block in a `#[loop_match]`.
-                if find_attr!(self.tcx.hir_attrs(e.hir_id), AttributeKind::ConstContinue(_)) {
-                    if let Some(break_label) = break_label.label {
-                        let is_target_label = |cx: &Context| match cx {
-                            Context::LoopMatch { labeled_block } => {
-                                break_label.ident.name == labeled_block.ident.name
-                            }
-                            _ => false,
-                        };
-
-                        if !self.cx_stack.iter().rev().any(is_target_label) {
-                            let span = break_label.ident.span;
-                            self.tcx.dcx().emit_fatal(ConstContinueBadLabel { span });
+                if find_attr!(self.tcx.hir_attrs(e.hir_id), AttributeKind::ConstContinue(_))
+                    && let Some(break_label) = break_label.label
+                {
+                    let is_target_label = |cx: &Context| match cx {
+                        Context::LoopMatch { labeled_block } => {
+                            break_label.ident.name == labeled_block.ident.name
                         }
+                        _ => false,
+                    };
+
+                    if !self.cx_stack.iter().rev().any(is_target_label) {
+                        let span = break_label.ident.span;
+                        self.tcx.dcx().emit_fatal(ConstContinueBadLabel { span });
                     }
                 }
 

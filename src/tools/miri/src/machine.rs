@@ -1199,7 +1199,7 @@ impl<'tcx> Machine<'tcx> for MiriMachine<'tcx> {
             ExternAbi::Rust,
             &[],
             None,
-            ReturnContinuation::Goto { ret: None, unwind: mir::UnwindAction::Unreachable },
+            StackPopCleanup::Goto { ret: None, unwind: mir::UnwindAction::Unreachable },
         )?;
         interp_ok(())
     }

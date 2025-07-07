@@ -175,10 +175,10 @@ pub(super) fn get_sdk_root(sess: &Session) -> Option<PathBuf> {
             if let Some(developer_dir) = xcode_select_developer_dir() {
                 diag.arg("developer_dir", &developer_dir);
                 diag.note(fluent::codegen_ssa_xcrun_found_developer_dir);
-                if developer_dir.as_os_str().to_string_lossy().contains("CommandLineTools") {
-                    if sdk_name != "MacOSX" {
-                        diag.help(fluent::codegen_ssa_xcrun_command_line_tools_insufficient);
-                    }
+                if developer_dir.as_os_str().to_string_lossy().contains("CommandLineTools")
+                    && sdk_name != "MacOSX"
+                {
+                    diag.help(fluent::codegen_ssa_xcrun_command_line_tools_insufficient);
                 }
             } else {
                 diag.help(fluent::codegen_ssa_xcrun_no_developer_dir);

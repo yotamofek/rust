@@ -598,10 +598,10 @@ impl<'sess, S: Stage> AttributeParser<'sess, S> {
 
         for attr in attrs {
             // If we're only looking for a single attribute, skip all the ones we don't care about.
-            if let Some(expected) = self.parse_only {
-                if !attr.has_name(expected) {
-                    continue;
-                }
+            if let Some(expected) = self.parse_only
+                && !attr.has_name(expected)
+            {
+                continue;
             }
 
             // Sometimes, for example for `#![doc = include_str!("readme.md")]`,

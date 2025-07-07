@@ -143,13 +143,12 @@ impl RwLock {
             assert!(!has_reached_max_readers(state), "too many active read locks on RwLock");
 
             // Make sure the readers waiting bit is set before we go to sleep.
-            if !has_readers_waiting(state) {
-                if let Err(s) =
+            if !has_readers_waiting(state)
+                && let Err(s) =
                     self.state.compare_exchange(state, state | READERS_WAITING, Relaxed, Relaxed)
-                {
-                    state = s;
-                    continue;
-                }
+            {
+                state = s;
+                continue;
             }
 
             // Wait for the state to change.
@@ -229,13 +228,12 @@ impl RwLock {
             }
 
             // Set the waiting bit indicating that we're waiting on it.
-            if !has_writers_waiting(state) {
-                if let Err(s) =
+            if !has_writers_waiting(state)
+                && let Err(s) =
                     self.state.compare_exchange(state, state | WRITERS_WAITING, Relaxed, Relaxed)
-                {
-                    state = s;
-                    continue;
-                }
+            {
+                state = s;
+                continue;
             }
 
             // Other writers might be waiting now too, so we should make sure
@@ -308,10 +306,10 @@ impl RwLock {
         }
 
         // If readers are waiting, wake them all up.
-        if state == READERS_WAITING {
-            if self.state.compare_exchange(state, 0, Relaxed, Relaxed).is_ok() {
-                futex_wake_all(&self.state);
-            }
+        if state == READERS_WAITING
+            && self.state.compare_exchange(state, 0, Relaxed, Relaxed).is_ok()
+        {
+            futex_wake_all(&self.state);
         }
     }
 

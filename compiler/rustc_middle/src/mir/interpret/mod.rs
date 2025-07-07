@@ -297,7 +297,7 @@ impl<'tcx> GlobalAlloc<'tcx> {
         match self {
             GlobalAlloc::Function { .. } => cx.data_layout().instruction_address_space,
             GlobalAlloc::Static(..) | GlobalAlloc::Memory(..) | GlobalAlloc::VTable(..) => {
-                AddressSpace::ZERO
+                AddressSpace::DATA
             }
         }
     }
@@ -380,7 +380,7 @@ impl<'tcx> GlobalAlloc<'tcx> {
             GlobalAlloc::Function { .. } => (Size::ZERO, Align::ONE),
             GlobalAlloc::VTable(..) => {
                 // No data to be accessed here. But vtables are pointer-aligned.
-                return (Size::ZERO, tcx.data_layout.pointer_align().abi);
+                return (Size::ZERO, tcx.data_layout.pointer_align.abi);
             }
         }
     }
@@ -439,10 +439,10 @@ impl<'tcx> TyCtxt<'tcx> {
     /// Reserves a new ID *if* this allocation has not been dedup-reserved before.
     /// Should not be used for mutable memory.
     fn reserve_and_set_dedup(self, alloc: GlobalAlloc<'tcx>, salt: usize) -> AllocId {
-        if let GlobalAlloc::Memory(mem) = alloc {
-            if mem.inner().mutability.is_mut() {
-                bug!("trying to dedup-reserve mutable memory");
-            }
+        if let GlobalAlloc::Memory(mem) = alloc
+            && mem.inner().mutability.is_mut()
+        {
+            bug!("trying to dedup-reserve mutable memory");
         }
         let alloc_salt = (alloc, salt);
         // Locking this *before* `to_alloc` also to ensure correct lock order.

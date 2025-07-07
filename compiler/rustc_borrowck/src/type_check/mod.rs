@@ -664,24 +664,24 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
                     );
                 }
 
-                if let Some(annotation_index) = self.rvalue_user_ty(rv) {
-                    if let Err(terr) = self.relate_type_and_user_type(
+                if let Some(annotation_index) = self.rvalue_user_ty(rv)
+                    && let Err(terr) = self.relate_type_and_user_type(
                         rv_ty,
                         ty::Invariant,
                         &UserTypeProjection { base: annotation_index, projs: vec![] },
                         location.to_locations(),
                         ConstraintCategory::TypeAnnotation(AnnotationSource::GenericArg),
-                    ) {
-                        let annotation = &self.user_type_annotations[annotation_index];
-                        span_mirbug!(
-                            self,
-                            stmt,
-                            "bad user type on rvalue ({:?} = {:?}): {:?}",
-                            annotation,
-                            rv_ty,
-                            terr
-                        );
-                    }
+                    )
+                {
+                    let annotation = &self.user_type_annotations[annotation_index];
+                    span_mirbug!(
+                        self,
+                        stmt,
+                        "bad user type on rvalue ({:?} = {:?}): {:?}",
+                        annotation,
+                        rv_ty,
+                        terr
+                    );
                 }
 
                 if !self.unsized_feature_enabled() {
@@ -1627,24 +1627,20 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
                 Const::Unevaluated(uv, _) => Some(uv),
             };
 
-            if let Some(uv) = maybe_uneval {
-                if uv.promoted.is_none() {
-                    let tcx = self.tcx();
-                    let def_id = uv.def;
-                    if tcx.def_kind(def_id) == DefKind::InlineConst {
-                        let def_id = def_id.expect_local();
-                        let predicates = self.prove_closure_bounds(
-                            tcx,
-                            def_id,
-                            uv.args,
-                            location.to_locations(),
-                        );
-                        self.normalize_and_prove_instantiated_predicates(
-                            def_id.to_def_id(),
-                            predicates,
-                            location.to_locations(),
-                        );
-                    }
+            if let Some(uv) = maybe_uneval
+                && uv.promoted.is_none()
+            {
+                let tcx = self.tcx();
+                let def_id = uv.def;
+                if tcx.def_kind(def_id) == DefKind::InlineConst {
+                    let def_id = def_id.expect_local();
+                    let predicates =
+                        self.prove_closure_bounds(tcx, def_id, uv.args, location.to_locations());
+                    self.normalize_and_prove_instantiated_predicates(
+                        def_id.to_def_id(),
+                        predicates,
+                        location.to_locations(),
+                    );
                 }
             }
         }

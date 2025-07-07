@@ -203,12 +203,10 @@ where
                 // Something like `fn() {my_method}` type of the method
                 // `impl Pub<Priv> { pub fn my_method() {} }` is considered a private type,
                 // so we need to visit the self type additionally.
-                if let Some(assoc_item) = tcx.opt_associated_item(def_id) {
-                    if let Some(impl_def_id) = assoc_item.impl_container(tcx) {
-                        try_visit!(
-                            tcx.type_of(impl_def_id).instantiate_identity().visit_with(self)
-                        );
-                    }
+                if let Some(assoc_item) = tcx.opt_associated_item(def_id)
+                    && let Some(impl_def_id) = assoc_item.impl_container(tcx)
+                {
+                    try_visit!(tcx.type_of(impl_def_id).instantiate_identity().visit_with(self));
                 }
             }
             ty::Alias(kind @ (ty::Inherent | ty::Free | ty::Projection), data) => {
@@ -575,10 +573,10 @@ impl<'tcx> EmbargoVisitor<'tcx> {
             // privacy and mark them reachable.
             DefKind::Macro(_) => {
                 let item = self.tcx.hir_expect_item(def_id);
-                if let hir::ItemKind::Macro(_, MacroDef { macro_rules: false, .. }, _) = item.kind {
-                    if vis.is_accessible_from(module, self.tcx) {
-                        self.update(def_id, macro_ev, Level::Reachable);
-                    }
+                if let hir::ItemKind::Macro(_, MacroDef { macro_rules: false, .. }, _) = item.kind
+                    && vis.is_accessible_from(module, self.tcx)
+                {
+                    self.update(def_id, macro_ev, Level::Reachable);
                 }
             }
 
@@ -746,10 +744,10 @@ impl<'tcx> Visitor<'tcx> for EmbargoVisitor<'tcx> {
                         // enum is not, make the enum reachable as well.
                         self.reach(item.owner_id.def_id, variant_ev).ty();
                     }
-                    if let Some(ctor_def_id) = variant.data.ctor_def_id() {
-                        if let Some(ctor_ev) = self.get(ctor_def_id) {
-                            self.reach(item.owner_id.def_id, ctor_ev).ty();
-                        }
+                    if let Some(ctor_def_id) = variant.data.ctor_def_id()
+                        && let Some(ctor_ev) = self.get(ctor_def_id)
+                    {
+                        self.reach(item.owner_id.def_id, ctor_ev).ty();
                     }
                 }
             }
@@ -1308,11 +1306,11 @@ impl<'tcx> Visitor<'tcx> for TypePrivacyVisitor<'tcx> {
     }
 
     fn visit_local(&mut self, local: &'tcx hir::LetStmt<'tcx>) {
-        if let Some(init) = local.init {
-            if self.check_expr_pat_type(init.hir_id, init.span) {
-                // Do not report duplicate errors for `let x = y`.
-                return;
-            }
+        if let Some(init) = local.init
+            && self.check_expr_pat_type(init.hir_id, init.span)
+        {
+            // Do not report duplicate errors for `let x = y`.
+            return;
         }
 
         intravisit::walk_local(self, local);
@@ -1813,17 +1811,14 @@ fn check_mod_privacy(tcx: TyCtxt<'_>, module_def_id: LocalModDefId) {
     }
 
     for id in module.free_items() {
-        if let ItemKind::Impl(i) = tcx.hir_item(id).kind {
-            if let Some(item) = i.of_trait {
-                let trait_ref = tcx.impl_trait_ref(id.owner_id.def_id).unwrap();
-                let trait_ref = trait_ref.instantiate_identity();
-                visitor.span = item.path.span;
-                let _ = visitor.visit_def_id(
-                    trait_ref.def_id,
-                    "trait",
-                    &trait_ref.print_only_trait_path(),
-                );
-            }
+        if let ItemKind::Impl(i) = tcx.hir_item(id).kind
+            && let Some(item) = i.of_trait
+        {
+            let trait_ref = tcx.impl_trait_ref(id.owner_id.def_id).unwrap();
+            let trait_ref = trait_ref.instantiate_identity();
+            visitor.span = item.path.span;
+            let _ =
+                visitor.visit_def_id(trait_ref.def_id, "trait", &trait_ref.print_only_trait_path());
         }
     }
 }

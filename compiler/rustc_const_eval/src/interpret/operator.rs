@@ -201,13 +201,11 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
 
                 // We need a special check for overflowing Rem and Div since they are *UB*
                 // on overflow, which can happen with "int_min $OP -1".
-                if matches!(bin_op, Rem | Div) {
-                    if l == size.signed_int_min() && r == -1 {
-                        if bin_op == Rem {
-                            throw_ub!(RemainderOverflow)
-                        } else {
-                            throw_ub!(DivisionOverflow)
-                        }
+                if matches!(bin_op, Rem | Div) && l == size.signed_int_min() && r == -1 {
+                    if bin_op == Rem {
+                        throw_ub!(RemainderOverflow)
+                    } else {
+                        throw_ub!(DivisionOverflow)
                     }
                 }
 

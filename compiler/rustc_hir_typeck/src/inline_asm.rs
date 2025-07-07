@@ -323,20 +323,20 @@ impl<'a, 'tcx> InlineAsmCtxt<'a, 'tcx> {
         // Also note that this check isn't run when the operand type is never
         // (!). In that case we still need the earlier check to verify that the
         // register class is usable at all.
-        if let Some(feature) = feature {
-            if !self.target_features.contains(feature) {
-                let msg = format!("`{feature}` target feature is not enabled");
-                self.fcx
-                    .dcx()
-                    .struct_span_err(expr.span, msg)
-                    .with_note(format!(
-                        "this is required to use type `{}` with register class `{}`",
-                        ty,
-                        reg_class.name(),
-                    ))
-                    .emit();
-                return Some(asm_ty);
-            }
+        if let Some(feature) = feature
+            && !self.target_features.contains(feature)
+        {
+            let msg = format!("`{feature}` target feature is not enabled");
+            self.fcx
+                .dcx()
+                .struct_span_err(expr.span, msg)
+                .with_note(format!(
+                    "this is required to use type `{}` with register class `{}`",
+                    ty,
+                    reg_class.name(),
+                ))
+                .emit();
+            return Some(asm_ty);
         }
 
         // Check whether a modifier is suggested for using this type.
@@ -351,10 +351,10 @@ impl<'a, 'tcx> InlineAsmCtxt<'a, 'tcx> {
             let mut spans = vec![];
             for piece in template {
                 if let &InlineAsmTemplatePiece::Placeholder { operand_idx, modifier, span } = piece
+                    && operand_idx == idx
+                    && modifier.is_none()
                 {
-                    if operand_idx == idx && modifier.is_none() {
-                        spans.push(span);
-                    }
+                    spans.push(span);
                 }
             }
             if !spans.is_empty() {

@@ -898,10 +898,10 @@ impl Target {
         let mut features = FxHashSet::default();
         let mut new_features = vec![base_feature];
         while let Some(new_feature) = new_features.pop() {
-            if features.insert(new_feature) {
-                if let Some(implied_features) = implied_features.get(&new_feature) {
-                    new_features.extend(implied_features.iter().copied())
-                }
+            if features.insert(new_feature)
+                && let Some(implied_features) = implied_features.get(&new_feature)
+            {
+                new_features.extend(implied_features.iter().copied())
             }
         }
         features

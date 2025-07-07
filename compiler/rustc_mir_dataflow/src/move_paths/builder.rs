@@ -589,10 +589,10 @@ impl<'a, 'tcx, F: Fn(Ty<'tcx>) -> bool> MoveDataBuilder<'a, 'tcx, F> {
 
         // Check if we are assigning into a field of a union, if so, lookup the place
         // of the union so it is marked as initialized again.
-        if let Some((place_base, ProjectionElem::Field(_, _))) = place.last_projection() {
-            if place_base.ty(self.body, self.tcx).ty.is_union() {
-                place = place_base;
-            }
+        if let Some((place_base, ProjectionElem::Field(_, _))) = place.last_projection()
+            && place_base.ty(self.body, self.tcx).ty.is_union()
+        {
+            place = place_base;
         }
 
         if let LookupResult::Exact(path) = self.data.rev_lookup.find(place) {

@@ -457,10 +457,10 @@ impl<'tcx> Collector<'tcx> {
                 }
             }
 
-            if let Some((_, span)) = wasm_import_module {
-                if name.is_some() || kind.is_some() || modifiers.is_some() || cfg.is_some() {
-                    sess.dcx().emit_err(errors::IncompatibleWasmLink { span });
-                }
+            if let Some((_, span)) = wasm_import_module
+                && (name.is_some() || kind.is_some() || modifiers.is_some() || cfg.is_some())
+            {
+                sess.dcx().emit_err(errors::IncompatibleWasmLink { span });
             }
 
             if wasm_import_module.is_some() {
@@ -472,10 +472,10 @@ impl<'tcx> Collector<'tcx> {
             };
 
             // Do this outside of the loop so that `import_name_type` can be specified before `kind`.
-            if let Some((_, span)) = import_name_type {
-                if kind != Some(NativeLibKind::RawDylib) {
-                    sess.dcx().emit_err(errors::ImportNameTypeRaw { span });
-                }
+            if let Some((_, span)) = import_name_type
+                && kind != Some(NativeLibKind::RawDylib)
+            {
+                sess.dcx().emit_err(errors::ImportNameTypeRaw { span });
             }
 
             let dll_imports = match kind {

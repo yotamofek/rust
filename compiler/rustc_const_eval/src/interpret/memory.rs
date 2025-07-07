@@ -369,17 +369,17 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
                 kind = format!("{kind}"),
             );
         }
-        if let Some((size, align)) = old_size_and_align {
-            if size != alloc.size() || align != alloc.align {
-                throw_ub_custom!(
-                    fluent::const_eval_dealloc_incorrect_layout,
-                    alloc = alloc_id,
-                    size = alloc.size().bytes(),
-                    align = alloc.align.bytes(),
-                    size_found = size.bytes(),
-                    align_found = align.bytes(),
-                )
-            }
+        if let Some((size, align)) = old_size_and_align
+            && (size != alloc.size() || align != alloc.align)
+        {
+            throw_ub_custom!(
+                fluent::const_eval_dealloc_incorrect_layout,
+                alloc = alloc_id,
+                size = alloc.size().bytes(),
+                align = alloc.align.bytes(),
+                size_found = size.bytes(),
+                align_found = align.bytes(),
+            )
         }
 
         // Let the machine take some extra action
@@ -718,10 +718,10 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
         // We want to call the hook on *all* accesses that involve an AllocId, including zero-sized
         // accesses. That means we cannot rely on the closure above or the `Some` branch below. We
         // do this after `check_and_deref_ptr` to ensure some basic sanity has already been checked.
-        if !self.memory.validation_in_progress.get() {
-            if let Ok((alloc_id, ..)) = self.ptr_try_get_alloc_id(ptr, size_i64) {
-                M::before_alloc_access(self.tcx, &self.machine, alloc_id)?;
-            }
+        if !self.memory.validation_in_progress.get()
+            && let Ok((alloc_id, ..)) = self.ptr_try_get_alloc_id(ptr, size_i64)
+        {
+            M::before_alloc_access(self.tcx, &self.machine, alloc_id)?;
         }
 
         if let Some((alloc_id, offset, prov, alloc)) = ptr_and_alloc {
@@ -1233,7 +1233,7 @@ impl<'a, 'tcx, Prov: Provenance, Extra, Bytes: AllocBytes>
 
     /// `offset` is relative to this allocation reference, not the base of the allocation.
     pub fn write_ptr_sized(&mut self, offset: Size, val: Scalar<Prov>) -> InterpResult<'tcx> {
-        self.write_scalar(alloc_range(offset, self.tcx.data_layout().pointer_size()), val)
+        self.write_scalar(alloc_range(offset, self.tcx.data_layout().pointer_size), val)
     }
 
     /// Mark the given sub-range (relative to this allocation reference) as uninitialized.
@@ -1285,7 +1285,7 @@ impl<'a, 'tcx, Prov: Provenance, Extra, Bytes: AllocBytes> AllocRef<'a, 'tcx, Pr
     /// `offset` is relative to this allocation reference, not the base of the allocation.
     pub fn read_pointer(&self, offset: Size) -> InterpResult<'tcx, Scalar<Prov>> {
         self.read_scalar(
-            alloc_range(offset, self.tcx.data_layout().pointer_size()),
+            alloc_range(offset, self.tcx.data_layout().pointer_size),
             /*read_provenance*/ true,
         )
     }
@@ -1482,14 +1482,12 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
         // The pointers above remain valid even if the `HashMap` table is moved around because they
         // point into the `Vec` storing the bytes.
         unsafe {
-            if src_alloc_id == dest_alloc_id {
-                if nonoverlapping {
-                    // `Size` additions
-                    if (src_offset <= dest_offset && src_offset + size > dest_offset)
-                        || (dest_offset <= src_offset && dest_offset + size > src_offset)
-                    {
-                        throw_ub_custom!(fluent::const_eval_copy_nonoverlapping_overlapping);
-                    }
+            if src_alloc_id == dest_alloc_id && nonoverlapping {
+                // `Size` additions
+                if (src_offset <= dest_offset && src_offset + size > dest_offset)
+                    || (dest_offset <= src_offset && dest_offset + size > src_offset)
+                {
+                    throw_ub_custom!(fluent::const_eval_copy_nonoverlapping_overlapping);
                 }
             }
             if num_copies > 1 {

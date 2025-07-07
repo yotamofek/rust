@@ -80,15 +80,14 @@ impl<'tcx> crate::MirPass<'tcx> for Validator {
             cfg_checker.fail(location, msg);
         }
 
-        if let MirPhase::Runtime(_) = body.phase {
-            if let ty::InstanceKind::Item(_) = body.source.instance {
-                if body.has_free_regions() {
-                    cfg_checker.fail(
-                        Location::START,
-                        format!("Free regions in optimized {} MIR", body.phase.name()),
-                    );
-                }
-            }
+        if let MirPhase::Runtime(_) = body.phase
+            && let ty::InstanceKind::Item(_) = body.source.instance
+            && body.has_free_regions()
+        {
+            cfg_checker.fail(
+                Location::START,
+                format!("Free regions in optimized {} MIR", body.phase.name()),
+            );
         }
     }
 
@@ -420,17 +419,17 @@ impl<'a, 'tcx> Visitor<'tcx> for CfgChecker<'a, 'tcx> {
                 }
 
                 for arg in args {
-                    if let Operand::Move(place) = &arg.node {
-                        if is_within_packed(self.tcx, &self.body.local_decls, *place).is_some() {
-                            // This is bad! The callee will expect the memory to be aligned.
-                            self.fail(
-                                location,
-                                format!(
-                                    "encountered `Move` of a packed place in `Call` terminator: {:?}",
-                                    terminator.kind,
-                                ),
-                            );
-                        }
+                    if let Operand::Move(place) = &arg.node
+                        && is_within_packed(self.tcx, &self.body.local_decls, *place).is_some()
+                    {
+                        // This is bad! The callee will expect the memory to be aligned.
+                        self.fail(
+                            location,
+                            format!(
+                                "encountered `Move` of a packed place in `Call` terminator: {:?}",
+                                terminator.kind,
+                            ),
+                        );
                     }
                 }
 
@@ -900,15 +899,13 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
         // Ensure all downcast projections are followed by field projections.
         let mut projections_iter = place.projection.iter();
         while let Some(proj) = projections_iter.next() {
-            if matches!(proj, ProjectionElem::Downcast(..)) {
-                if !matches!(projections_iter.next(), Some(ProjectionElem::Field(..))) {
-                    self.fail(
-                        location,
-                        format!(
-                            "place {place:?} has `Downcast` projection not followed by `Field`"
-                        ),
-                    );
-                }
+            if matches!(proj, ProjectionElem::Downcast(..))
+                && !matches!(projections_iter.next(), Some(ProjectionElem::Field(..)))
+            {
+                self.fail(
+                    location,
+                    format!("place {place:?} has `Downcast` projection not followed by `Field`"),
+                );
             }
         }
 
@@ -1035,10 +1032,10 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
                             if !self.mir_assign_valid_types(metadata_ty, self.tcx.types.usize) {
                                 self.fail(location, "slice metadata must be usize");
                             }
-                        } else if pointee_ty.is_sized(self.tcx, self.typing_env) {
-                            if metadata_ty != self.tcx.types.unit {
-                                self.fail(location, "metadata for pointer-to-thin must be unit");
-                            }
+                        } else if pointee_ty.is_sized(self.tcx, self.typing_env)
+                            && metadata_ty != self.tcx.types.unit
+                        {
+                            self.fail(location, "metadata for pointer-to-thin must be unit");
                         }
                     } else {
                         self.fail(location, "raw pointer aggregate must have 2 fields");
@@ -1422,13 +1419,13 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
                         ),
                     );
                 }
-                if let Rvalue::CopyForDeref(place) = rvalue {
-                    if place.ty(&self.body.local_decls, self.tcx).ty.builtin_deref(true).is_none() {
-                        self.fail(
-                            location,
-                            "`CopyForDeref` should only be used for dereferenceable types",
-                        )
-                    }
+                if let Rvalue::CopyForDeref(place) = rvalue
+                    && place.ty(&self.body.local_decls, self.tcx).ty.builtin_deref(true).is_none()
+                {
+                    self.fail(
+                        location,
+                        "`CopyForDeref` should only be used for dereferenceable types",
+                    )
                 }
             }
             StatementKind::AscribeUserType(..) => {

@@ -1508,15 +1508,15 @@ impl<'tcx> Liveness<'_, 'tcx> {
                 let span = captured_place.get_capture_kind_span(self.ir.tcx);
                 let var = self.variable(var_hir_id, span);
                 if self.used_on_entry(entry_ln, var) {
-                    if !self.live_on_entry(entry_ln, var) {
-                        if let Some(name) = self.should_warn(var) {
-                            self.ir.tcx.emit_node_span_lint(
-                                lint::builtin::UNUSED_ASSIGNMENTS,
-                                var_hir_id,
-                                vec![span],
-                                errors::UnusedCaptureMaybeCaptureRef { name },
-                            );
-                        }
+                    if !self.live_on_entry(entry_ln, var)
+                        && let Some(name) = self.should_warn(var)
+                    {
+                        self.ir.tcx.emit_node_span_lint(
+                            lint::builtin::UNUSED_ASSIGNMENTS,
+                            var_hir_id,
+                            vec![span],
+                            errors::UnusedCaptureMaybeCaptureRef { name },
+                        );
                     }
                 } else if let Some(name) = self.should_warn(var) {
                     self.ir.tcx.emit_node_span_lint(
@@ -1532,10 +1532,9 @@ impl<'tcx> Liveness<'_, 'tcx> {
 
     fn warn_about_unused_args(&self, body: &hir::Body<'_>, entry_ln: LiveNode) {
         if let Some(intrinsic) = self.ir.tcx.intrinsic(self.ir.tcx.hir_body_owner_def_id(body.id()))
+            && intrinsic.must_be_overridden
         {
-            if intrinsic.must_be_overridden {
-                return;
-            }
+            return;
         }
 
         for p in body.params {

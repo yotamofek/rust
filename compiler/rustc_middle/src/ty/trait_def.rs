@@ -177,10 +177,9 @@ impl<'tcx> TyCtxt<'tcx> {
         let impls = self.trait_impls_of(trait_def_id);
         if let Some(simp) =
             fast_reject::simplify_type(self, self_ty, TreatParams::InstantiateWithInfer)
+            && let Some(impls) = impls.non_blanket_impls.get(&simp)
         {
-            if let Some(impls) = impls.non_blanket_impls.get(&simp) {
-                return impls.iter().copied();
-            }
+            return impls.iter().copied();
         }
 
         [].iter().copied()

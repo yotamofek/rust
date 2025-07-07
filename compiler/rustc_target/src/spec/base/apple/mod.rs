@@ -205,18 +205,17 @@ fn link_env_remove(os: &'static str) -> StaticCow<[StaticCow<str>]> {
         let mut env_remove = Vec::with_capacity(2);
         // Remove the `SDKROOT` environment variable if it's clearly set for the wrong platform, which
         // may occur when we're linking a custom build script while targeting iOS for example.
-        if let Ok(sdkroot) = env::var("SDKROOT") {
-            if sdkroot.contains("iPhoneOS.platform")
+        if let Ok(sdkroot) = env::var("SDKROOT")
+            && (sdkroot.contains("iPhoneOS.platform")
                 || sdkroot.contains("iPhoneSimulator.platform")
                 || sdkroot.contains("AppleTVOS.platform")
                 || sdkroot.contains("AppleTVSimulator.platform")
                 || sdkroot.contains("WatchOS.platform")
                 || sdkroot.contains("WatchSimulator.platform")
                 || sdkroot.contains("XROS.platform")
-                || sdkroot.contains("XRSimulator.platform")
-            {
-                env_remove.push("SDKROOT".into())
-            }
+                || sdkroot.contains("XRSimulator.platform"))
+        {
+            env_remove.push("SDKROOT".into())
         }
         // Additionally, `IPHONEOS_DEPLOYMENT_TARGET` must not be set when using the Xcode linker at
         // "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld",

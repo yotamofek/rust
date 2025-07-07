@@ -194,12 +194,11 @@ fn overlap<'tcx>(
     impl2_def_id: DefId,
     overlap_mode: OverlapMode,
 ) -> Option<OverlapResult<'tcx>> {
-    if overlap_mode.use_negative_impl() {
-        if impl_intersection_has_negative_obligation(tcx, impl1_def_id, impl2_def_id)
-            || impl_intersection_has_negative_obligation(tcx, impl2_def_id, impl1_def_id)
-        {
-            return None;
-        }
+    if overlap_mode.use_negative_impl()
+        && (impl_intersection_has_negative_obligation(tcx, impl1_def_id, impl2_def_id)
+            || impl_intersection_has_negative_obligation(tcx, impl2_def_id, impl1_def_id))
+    {
+        return None;
     }
 
     let infcx = tcx
@@ -694,15 +693,14 @@ impl<'a, 'tcx> ProofTreeVisitor<'tcx> for AmbiguityCausesVisitor<'a, 'tcx> {
                 source: CandidateSource::Impl(def_id),
                 result: Ok(_),
             } = cand.kind()
+                && let ty::ImplPolarity::Reservation = infcx.tcx.impl_polarity(def_id)
             {
-                if let ty::ImplPolarity::Reservation = infcx.tcx.impl_polarity(def_id) {
-                    let message = infcx
-                        .tcx
-                        .get_attr(def_id, sym::rustc_reservation_impl)
-                        .and_then(|a| a.value_str());
-                    if let Some(message) = message {
-                        self.causes.insert(IntercrateAmbiguityCause::ReservationImpl { message });
-                    }
+                let message = infcx
+                    .tcx
+                    .get_attr(def_id, sym::rustc_reservation_impl)
+                    .and_then(|a| a.value_str());
+                if let Some(message) = message {
+                    self.causes.insert(IntercrateAmbiguityCause::ReservationImpl { message });
                 }
             }
         }

@@ -76,10 +76,10 @@ fn eliminate<'tcx>(tcx: TyCtxt<'tcx>, body: &mut Body<'tcx>) {
 
         for (statement_index, statement) in bb_data.statements.iter().enumerate().rev() {
             let loc = Location { block: bb, statement_index };
-            if let StatementKind::Assign(assign) = &statement.kind {
-                if !assign.1.is_safe_to_remove() {
-                    continue;
-                }
+            if let StatementKind::Assign(box (_, rvalue)) = &statement.kind
+                && !rvalue.is_safe_to_remove()
+            {
+                continue;
             }
             match &statement.kind {
                 StatementKind::Assign(box (place, _))

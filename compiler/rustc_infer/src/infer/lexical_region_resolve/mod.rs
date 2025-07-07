@@ -785,18 +785,18 @@ impl<'cx, 'tcx> LexicalResolver<'cx, 'tcx> {
             .expect("lower_vid_bounds should at least include `node_idx`");
 
         for upper_bound in &upper_bounds {
-            if let ty::RePlaceholder(p) = upper_bound.region.kind() {
-                if min_universe.cannot_name(p.universe) {
-                    let origin = self.var_infos[node_idx].origin;
-                    errors.push(RegionResolutionError::UpperBoundUniverseConflict(
-                        node_idx,
-                        origin,
-                        min_universe,
-                        upper_bound.origin.clone(),
-                        upper_bound.region,
-                    ));
-                    return;
-                }
+            if let ty::RePlaceholder(p) = upper_bound.region.kind()
+                && min_universe.cannot_name(p.universe)
+            {
+                let origin = self.var_infos[node_idx].origin;
+                errors.push(RegionResolutionError::UpperBoundUniverseConflict(
+                    node_idx,
+                    origin,
+                    min_universe,
+                    upper_bound.origin.clone(),
+                    upper_bound.region,
+                ));
+                return;
             }
         }
 

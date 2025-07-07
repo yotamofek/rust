@@ -93,10 +93,9 @@ impl<'tcx> BorrowExplanation<'tcx> {
                         && let [hir::PathSegment { ident, args: None, .. }] = p.segments
                         && let hir::def::Res::Local(hir_id) = p.res
                         && let hir::Node::Pat(pat) = tcx.hir_node(hir_id)
+                        && !ident.span.in_external_macro(tcx.sess.source_map())
                     {
-                        if !ident.span.in_external_macro(tcx.sess.source_map()) {
-                            err.span_label(pat.span, format!("binding `{ident}` declared here"));
-                        }
+                        err.span_label(pat.span, format!("binding `{ident}` declared here"));
                     }
                 }
             }
@@ -196,13 +195,12 @@ impl<'tcx> BorrowExplanation<'tcx> {
             } => {
                 let local_decl = &body.local_decls[dropped_local];
                 let mut ty = local_decl.ty;
-                if local_decl.source_info.span.desugaring_kind() == Some(DesugaringKind::ForLoop) {
-                    if let ty::Adt(adt, args) = local_decl.ty.kind() {
-                        if tcx.is_diagnostic_item(sym::Option, adt.did()) {
-                            // in for loop desugaring, only look at the `Some(..)` inner type
-                            ty = args.type_at(0);
-                        }
-                    }
+                if local_decl.source_info.span.desugaring_kind() == Some(DesugaringKind::ForLoop)
+                    && let ty::Adt(adt, args) = local_decl.ty.kind()
+                    && tcx.is_diagnostic_item(sym::Option, adt.did())
+                {
+                    // in for loop desugaring, only look at the `Some(..)` inner type
+                    ty = args.type_at(0);
                 }
                 let (dtor_desc, type_desc) = match ty.kind() {
                     // If type is an ADT that implements Drop, then
@@ -861,16 +859,12 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
                     match rvalue {
                         // If we see a use, we should check whether it is our data, and if so
                         // update the place that we're looking for to that new place.
-                        Rvalue::Use(operand) => match operand {
-                            Operand::Copy(place) | Operand::Move(place) => {
-                                if let Some(from) = place.as_local() {
-                                    if from == target {
-                                        target = into;
-                                    }
-                                }
-                            }
-                            _ => {}
-                        },
+                        Rvalue::Use(Operand::Copy(place) | Operand::Move(place))
+                            if let Some(from) = place.as_local()
+                                && from == target =>
+                        {
+                            target = into;
+                        }
                         // If we see an unsized cast, then if it is our data we should check
                         // whether it is being cast to a trait object.
                         Rvalue::Cast(
@@ -880,24 +874,22 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
                         ) => {
                             match operand {
                                 Operand::Copy(place) | Operand::Move(place) => {
-                                    if let Some(from) = place.as_local() {
-                                        if from == target {
-                                            debug!("was_captured_by_trait_object: ty={:?}", ty);
-                                            // Check the type for a trait object.
-                                            return match ty.kind() {
-                                                // `&dyn Trait`
-                                                ty::Ref(_, ty, _) if ty.is_trait() => true,
-                                                // `Box<dyn Trait>`
-                                                _ if ty.boxed_ty().is_some_and(Ty::is_trait) => {
-                                                    true
-                                                }
+                                    if let Some(from) = place.as_local()
+                                        && from == target
+                                    {
+                                        debug!("was_captured_by_trait_object: ty={:?}", ty);
+                                        // Check the type for a trait object.
+                                        return match ty.kind() {
+                                            // `&dyn Trait`
+                                            ty::Ref(_, ty, _) if ty.is_trait() => true,
+                                            // `Box<dyn Trait>`
+                                            _ if ty.boxed_ty().is_some_and(Ty::is_trait) => true,
 
-                                                // `dyn Trait`
-                                                _ if ty.is_trait() => true,
-                                                // Anything else.
-                                                _ => false,
-                                            };
-                                        }
+                                            // `dyn Trait`
+                                            _ if ty.is_trait() => true,
+                                            // Anything else.
+                                            _ => false,
+                                        };
                                     }
                                     return false;
                                 }
@@ -917,30 +909,29 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
 
                 if let TerminatorKind::Call { destination, target: Some(block), args, .. } =
                     &terminator.kind
+                    && let Some(dest) = destination.as_local()
                 {
-                    if let Some(dest) = destination.as_local() {
-                        debug!(
-                            "was_captured_by_trait_object: target={:?} dest={:?} args={:?}",
-                            target, dest, args
-                        );
-                        // Check if one of the arguments to this function is the target place.
-                        let found_target = args.iter().any(|arg| {
-                            if let Operand::Move(place) = arg.node {
-                                if let Some(potential) = place.as_local() {
-                                    potential == target
-                                } else {
-                                    false
-                                }
+                    debug!(
+                        "was_captured_by_trait_object: target={:?} dest={:?} args={:?}",
+                        target, dest, args
+                    );
+                    // Check if one of the arguments to this function is the target place.
+                    let found_target = args.iter().any(|arg| {
+                        if let Operand::Move(place) = arg.node {
+                            if let Some(potential) = place.as_local() {
+                                potential == target
                             } else {
                                 false
                             }
-                        });
-
-                        // If it is, follow this to the next block and update the target.
-                        if found_target {
-                            target = dest;
-                            queue.push(block.start_location());
+                        } else {
+                            false
                         }
+                    });
+
+                    // If it is, follow this to the next block and update the target.
+                    if found_target {
+                        target = dest;
+                        queue.push(block.start_location());
                     }
                 }
             }

@@ -169,10 +169,8 @@ fn report_format_mismatch(report_incremental_info: bool, file: &Path, message: &
 /// with different encodings of incremental compilation artifacts. Contains
 /// the Git commit hash.
 fn rustc_version(nightly_build: bool, cfg_version: &'static str) -> Cow<'static, str> {
-    if nightly_build {
-        if let Ok(val) = env::var("RUSTC_FORCE_RUSTC_VERSION") {
-            return val.into();
-        }
+    if nightly_build && let Ok(val) = env::var("RUSTC_FORCE_RUSTC_VERSION") {
+        return val.into();
     }
 
     cfg_version.into()

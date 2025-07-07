@@ -1230,18 +1230,18 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
 
                 // Check for shadowing of a by-reference method by a by-value method (see comments on check_for_shadowing)
                 if let Some(by_value_pick) = by_value_pick {
-                    if let Ok(by_value_pick) = by_value_pick.as_ref() {
-                        if by_value_pick.kind == PickKind::InherentImplPick {
-                            for mutbl in [hir::Mutability::Not, hir::Mutability::Mut] {
-                                if let Err(e) = self.check_for_shadowed_autorefd_method(
-                                    by_value_pick,
-                                    step,
-                                    self_ty,
-                                    mutbl,
-                                    track_unstable_candidates,
-                                ) {
-                                    return Some(Err(e));
-                                }
+                    if let Ok(by_value_pick) = by_value_pick.as_ref()
+                        && by_value_pick.kind == PickKind::InherentImplPick
+                    {
+                        for mutbl in [hir::Mutability::Not, hir::Mutability::Mut] {
+                            if let Err(e) = self.check_for_shadowed_autorefd_method(
+                                by_value_pick,
+                                step,
+                                self_ty,
+                                mutbl,
+                                track_unstable_candidates,
+                            ) {
+                                return Some(Err(e));
                             }
                         }
                     }
@@ -1259,16 +1259,16 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                 if let Some(autoref_pick) = autoref_pick {
                     if let Ok(autoref_pick) = autoref_pick.as_ref() {
                         // Check we're not shadowing others
-                        if autoref_pick.kind == PickKind::InherentImplPick {
-                            if let Err(e) = self.check_for_shadowed_autorefd_method(
+                        if autoref_pick.kind == PickKind::InherentImplPick
+                            && let Err(e) = self.check_for_shadowed_autorefd_method(
                                 autoref_pick,
                                 step,
                                 self_ty,
                                 hir::Mutability::Mut,
                                 track_unstable_candidates,
-                            ) {
-                                return Some(Err(e));
-                            }
+                            )
+                        {
+                            return Some(Err(e));
                         }
                     }
                     return Some(autoref_pick);
@@ -1468,10 +1468,10 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
     ) -> Option<PickResult<'tcx>> {
         let tcx = self.tcx;
 
-        if let Some(pick_constraints) = pick_constraints {
-            if !pick_constraints.may_shadow_based_on_autoderefs(step.autoderefs) {
-                return None;
-            }
+        if let Some(pick_constraints) = pick_constraints
+            && !pick_constraints.may_shadow_based_on_autoderefs(step.autoderefs)
+        {
+            return None;
         }
 
         // In general, during probing we erase regions.
@@ -1572,8 +1572,8 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
             }
         }
 
-        if self.private_candidate.get().is_none() {
-            if let Some(Ok(pick)) = self.consider_candidates(
+        if self.private_candidate.get().is_none()
+            && let Some(Ok(pick)) = self.consider_candidates(
                 self_ty,
                 &self.private_candidates,
                 &mut PickDiagHints {
@@ -1581,9 +1581,9 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                     unsatisfied_predicates: &mut vec![],
                 },
                 None,
-            ) {
-                self.private_candidate.set(Some((pick.item.as_def_kind(), pick.item.def_id)));
-            }
+            )
+        {
+            self.private_candidate.set(Some((pick.item.as_def_kind(), pick.item.def_id)));
         }
         None
     }
@@ -1617,12 +1617,11 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
 
         debug!("applicable_candidates: {:?}", applicable_candidates);
 
-        if applicable_candidates.len() > 1 {
-            if let Some(pick) =
+        if applicable_candidates.len() > 1
+            && let Some(pick) =
                 self.collapse_candidates_to_trait_pick(self_ty, &applicable_candidates)
-            {
-                return Some(Ok(pick));
-            }
+        {
+            return Some(Ok(pick));
         }
 
         if let Some(uc) = &mut pick_diag_hints.unstable_candidates {
@@ -1641,12 +1640,11 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
             // We collapse to a subtrait pick *after* filtering unstable candidates
             // to make sure we don't prefer a unstable subtrait method over a stable
             // supertrait method.
-            if self.tcx.features().supertrait_item_shadowing() {
-                if let Some(pick) =
+            if self.tcx.features().supertrait_item_shadowing()
+                && let Some(pick) =
                     self.collapse_candidates_to_subtrait_pick(self_ty, &applicable_candidates)
-                {
-                    return Some(Ok(pick));
-                }
+            {
+                return Some(Ok(pick));
             }
 
             let sources = candidates.iter().map(|p| self.candidate_source(p, self_ty)).collect();

@@ -2822,17 +2822,15 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                 let res = r.module_map.get(&parent_module).is_some_and(|m| {
                     for importer in m.glob_importers.borrow().iter() {
                         if let Some(next_parent_module) = importer.parent_scope.module.opt_def_id()
-                        {
-                            if next_parent_module == module
+                            && (next_parent_module == module
                                 || comes_from_same_module_for_glob(
                                     r,
                                     next_parent_module,
                                     module,
                                     visited,
-                                )
-                            {
-                                return true;
-                            }
+                                ))
+                        {
+                            return true;
                         }
                     }
                     false

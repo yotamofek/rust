@@ -1263,115 +1263,111 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                     (false, false)
                 };
 
-            if imm_ref_self_ty_satisfies_pred
+            if (imm_ref_self_ty_satisfies_pred
                 || mut_ref_self_ty_satisfies_pred
-                || ref_inner_ty_satisfies_pred
+                || ref_inner_ty_satisfies_pred)
+                && let Ok(snippet) = self.tcx.sess.source_map().span_to_snippet(span)
             {
-                if let Ok(snippet) = self.tcx.sess.source_map().span_to_snippet(span) {
-                    // We don't want a borrowing suggestion on the fields in structs,
-                    // ```
-                    // struct Foo {
-                    //  the_foos: Vec<Foo>
-                    // }
-                    // ```
-                    if !matches!(
-                        span.ctxt().outer_expn_data().kind,
-                        ExpnKind::Root | ExpnKind::Desugaring(DesugaringKind::ForLoop)
-                    ) {
-                        return false;
-                    }
-                    if snippet.starts_with('&') {
-                        // This is already a literal borrow and the obligation is failing
-                        // somewhere else in the obligation chain. Do not suggest non-sense.
-                        return false;
-                    }
-                    // We have a very specific type of error, where just borrowing this argument
-                    // might solve the problem. In cases like this, the important part is the
-                    // original type obligation, not the last one that failed, which is arbitrary.
-                    // Because of this, we modify the error to refer to the original obligation and
-                    // return early in the caller.
+                // We don't want a borrowing suggestion on the fields in structs,
+                // ```
+                // struct Foo {
+                //  the_foos: Vec<Foo>
+                // }
+                // ```
+                if !matches!(
+                    span.ctxt().outer_expn_data().kind,
+                    ExpnKind::Root | ExpnKind::Desugaring(DesugaringKind::ForLoop)
+                ) {
+                    return false;
+                }
+                if snippet.starts_with('&') {
+                    // This is already a literal borrow and the obligation is failing
+                    // somewhere else in the obligation chain. Do not suggest non-sense.
+                    return false;
+                }
+                // We have a very specific type of error, where just borrowing this argument
+                // might solve the problem. In cases like this, the important part is the
+                // original type obligation, not the last one that failed, which is arbitrary.
+                // Because of this, we modify the error to refer to the original obligation and
+                // return early in the caller.
 
-                    let msg = format!(
-                        "the trait bound `{}` is not satisfied",
-                        self.tcx.short_string(old_pred, err.long_ty_path()),
+                let msg = format!(
+                    "the trait bound `{}` is not satisfied",
+                    self.tcx.short_string(old_pred, err.long_ty_path()),
+                );
+                let self_ty_str =
+                    self.tcx.short_string(old_pred.self_ty().skip_binder(), err.long_ty_path());
+                if has_custom_message {
+                    err.note(msg);
+                } else {
+                    err.messages = vec![(rustc_errors::DiagMessage::from(msg), Style::NoStyle)];
+                }
+                err.span_label(
+                    span,
+                    format!(
+                        "the trait `{}` is not implemented for `{self_ty_str}`",
+                        old_pred.print_modifiers_and_trait_path()
+                    ),
+                );
+
+                if imm_ref_self_ty_satisfies_pred && mut_ref_self_ty_satisfies_pred {
+                    err.span_suggestions(
+                        span.shrink_to_lo(),
+                        "consider borrowing here",
+                        ["&".to_string(), "&mut ".to_string()],
+                        Applicability::MaybeIncorrect,
                     );
-                    let self_ty_str =
-                        self.tcx.short_string(old_pred.self_ty().skip_binder(), err.long_ty_path());
-                    if has_custom_message {
-                        err.note(msg);
-                    } else {
-                        err.messages = vec![(rustc_errors::DiagMessage::from(msg), Style::NoStyle)];
-                    }
-                    err.span_label(
-                        span,
-                        format!(
-                            "the trait `{}` is not implemented for `{self_ty_str}`",
-                            old_pred.print_modifiers_and_trait_path()
-                        ),
-                    );
+                } else {
+                    let is_mut = mut_ref_self_ty_satisfies_pred || ref_inner_ty_mut;
+                    let sugg_prefix = format!("&{}", if is_mut { "mut " } else { "" });
+                    let sugg_msg =
+                        format!("consider{} borrowing here", if is_mut { " mutably" } else { "" });
 
-                    if imm_ref_self_ty_satisfies_pred && mut_ref_self_ty_satisfies_pred {
-                        err.span_suggestions(
-                            span.shrink_to_lo(),
-                            "consider borrowing here",
-                            ["&".to_string(), "&mut ".to_string()],
-                            Applicability::MaybeIncorrect,
-                        );
-                    } else {
-                        let is_mut = mut_ref_self_ty_satisfies_pred || ref_inner_ty_mut;
-                        let sugg_prefix = format!("&{}", if is_mut { "mut " } else { "" });
-                        let sugg_msg = format!(
-                            "consider{} borrowing here",
-                            if is_mut { " mutably" } else { "" }
-                        );
-
-                        // Issue #109436, we need to add parentheses properly for method calls
-                        // for example, `foo.into()` should be `(&foo).into()`
-                        if let Some(_) =
-                            self.tcx.sess.source_map().span_look_ahead(span, ".", Some(50))
-                        {
-                            err.multipart_suggestion_verbose(
-                                sugg_msg,
-                                vec![
-                                    (span.shrink_to_lo(), format!("({sugg_prefix}")),
-                                    (span.shrink_to_hi(), ")".to_string()),
-                                ],
-                                Applicability::MaybeIncorrect,
-                            );
-                            return true;
-                        }
-
-                        // Issue #104961, we need to add parentheses properly for compound expressions
-                        // for example, `x.starts_with("hi".to_string() + "you")`
-                        // should be `x.starts_with(&("hi".to_string() + "you"))`
-                        let Some(body) = self.tcx.hir_maybe_body_owned_by(obligation.cause.body_id)
-                        else {
-                            return false;
-                        };
-                        let mut expr_finder = FindExprBySpan::new(span, self.tcx);
-                        expr_finder.visit_expr(body.value);
-                        let Some(expr) = expr_finder.result else {
-                            return false;
-                        };
-                        let needs_parens = expr_needs_parens(expr);
-
-                        let span = if needs_parens { span } else { span.shrink_to_lo() };
-                        let suggestions = if !needs_parens {
-                            vec![(span.shrink_to_lo(), sugg_prefix)]
-                        } else {
-                            vec![
-                                (span.shrink_to_lo(), format!("{sugg_prefix}(")),
-                                (span.shrink_to_hi(), ")".to_string()),
-                            ]
-                        };
+                    // Issue #109436, we need to add parentheses properly for method calls
+                    // for example, `foo.into()` should be `(&foo).into()`
+                    if let Some(_) = self.tcx.sess.source_map().span_look_ahead(span, ".", Some(50))
+                    {
                         err.multipart_suggestion_verbose(
                             sugg_msg,
-                            suggestions,
+                            vec![
+                                (span.shrink_to_lo(), format!("({sugg_prefix}")),
+                                (span.shrink_to_hi(), ")".to_string()),
+                            ],
                             Applicability::MaybeIncorrect,
                         );
+                        return true;
                     }
-                    return true;
+
+                    // Issue #104961, we need to add parentheses properly for compound expressions
+                    // for example, `x.starts_with("hi".to_string() + "you")`
+                    // should be `x.starts_with(&("hi".to_string() + "you"))`
+                    let Some(body) = self.tcx.hir_maybe_body_owned_by(obligation.cause.body_id)
+                    else {
+                        return false;
+                    };
+                    let mut expr_finder = FindExprBySpan::new(span, self.tcx);
+                    expr_finder.visit_expr(body.value);
+                    let Some(expr) = expr_finder.result else {
+                        return false;
+                    };
+                    let needs_parens = expr_needs_parens(expr);
+
+                    let span = if needs_parens { span } else { span.shrink_to_lo() };
+                    let suggestions = if !needs_parens {
+                        vec![(span.shrink_to_lo(), sugg_prefix)]
+                    } else {
+                        vec![
+                            (span.shrink_to_lo(), format!("{sugg_prefix}(")),
+                            (span.shrink_to_hi(), ")".to_string()),
+                        ]
+                    };
+                    err.multipart_suggestion_verbose(
+                        sugg_msg,
+                        suggestions,
+                        Applicability::MaybeIncorrect,
+                    );
                 }
+                return true;
             }
             return false;
         };
@@ -2117,26 +2113,26 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
         span: Span,
         trait_ref: DefId,
     ) {
-        if let Some(assoc_item) = self.tcx.opt_associated_item(item_def_id) {
-            if let ty::AssocKind::Const { .. } | ty::AssocKind::Type { .. } = assoc_item.kind {
-                err.note(format!(
-                    "{}s cannot be accessed directly on a `trait`, they can only be \
+        if let Some(assoc_item) = self.tcx.opt_associated_item(item_def_id)
+            && let ty::AssocKind::Const { .. } | ty::AssocKind::Type { .. } = assoc_item.kind
+        {
+            err.note(format!(
+                "{}s cannot be accessed directly on a `trait`, they can only be \
                         accessed through a specific `impl`",
-                    self.tcx.def_kind_descr(assoc_item.as_def_kind(), item_def_id)
-                ));
+                self.tcx.def_kind_descr(assoc_item.as_def_kind(), item_def_id)
+            ));
 
-                if !assoc_item.is_impl_trait_in_trait() {
-                    err.span_suggestion_verbose(
-                        span,
-                        "use the fully qualified path to an implementation",
-                        format!(
-                            "<Type as {}>::{}",
-                            self.tcx.def_path_str(trait_ref),
-                            assoc_item.name()
-                        ),
-                        Applicability::HasPlaceholders,
-                    );
-                }
+            if !assoc_item.is_impl_trait_in_trait() {
+                err.span_suggestion_verbose(
+                    span,
+                    "use the fully qualified path to an implementation",
+                    format!(
+                        "<Type as {}>::{}",
+                        self.tcx.def_path_str(trait_ref),
+                        assoc_item.name()
+                    ),
+                    Applicability::HasPlaceholders,
+                );
             }
         }
     }
@@ -3976,30 +3972,25 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
         let call_node = tcx.hir_node(call_hir_id);
         if let Node::Expr(hir::Expr { kind: hir::ExprKind::MethodCall(path, rcvr, ..), .. }) =
             call_node
+            && Some(rcvr.span) == err.span.primary_span()
         {
-            if Some(rcvr.span) == err.span.primary_span() {
-                err.replace_span_with(path.ident.span, true);
-            }
+            err.replace_span_with(path.ident.span, true);
         }
 
         if let Node::Expr(expr) = call_node {
             if let hir::ExprKind::Call(hir::Expr { span, .. }, _)
-            | hir::ExprKind::MethodCall(
-                hir::PathSegment { ident: Ident { span, .. }, .. },
-                ..,
-            ) = expr.kind
+            | hir::ExprKind::MethodCall(hir::PathSegment { ident: Ident { span, .. }, .. }, ..) =
+                expr.kind
+                && Some(*span) != err.span.primary_span()
             {
-                if Some(*span) != err.span.primary_span() {
-                    let msg = if span.is_desugaring(DesugaringKind::FormatLiteral { source: true })
-                    {
-                        "required by this formatting parameter"
-                    } else if span.is_desugaring(DesugaringKind::FormatLiteral { source: false }) {
-                        "required by a formatting parameter in this expression"
-                    } else {
-                        "required by a bound introduced by this call"
-                    };
-                    err.span_label(*span, msg);
-                }
+                let msg = if span.is_desugaring(DesugaringKind::FormatLiteral { source: true }) {
+                    "required by this formatting parameter"
+                } else if span.is_desugaring(DesugaringKind::FormatLiteral { source: false }) {
+                    "required by a formatting parameter in this expression"
+                } else {
+                    "required by a bound introduced by this call"
+                };
+                err.span_label(*span, msg);
             }
 
             if let hir::ExprKind::MethodCall(_, expr, ..) = expr.kind {
@@ -5219,15 +5210,14 @@ impl<'a, 'hir> hir::intravisit::Visitor<'hir> for ReplaceImplTraitVisitor<'a> {
             None,
             hir::Path { res: Res::Def(_, segment_did), .. },
         )) = t.kind
+            && self.param_did == *segment_did
         {
-            if self.param_did == *segment_did {
-                // `fn foo(t: impl Trait)`
-                //            ^^^^^^^^^^ get this to suggest `T` instead
+            // `fn foo(t: impl Trait)`
+            //            ^^^^^^^^^^ get this to suggest `T` instead
 
-                // There might be more than one `impl Trait`.
-                self.ty_spans.push(t.span);
-                return;
-            }
+            // There might be more than one `impl Trait`.
+            self.ty_spans.push(t.span);
+            return;
         }
 
         hir::intravisit::walk_ty(self, t);
@@ -5277,10 +5267,10 @@ struct ReplaceImplTraitFolder<'tcx> {
 
 impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ReplaceImplTraitFolder<'tcx> {
     fn fold_ty(&mut self, t: Ty<'tcx>) -> Ty<'tcx> {
-        if let ty::Param(ty::ParamTy { index, .. }) = t.kind() {
-            if self.param.index == *index {
-                return self.replace_ty;
-            }
+        if let ty::Param(ty::ParamTy { index, .. }) = t.kind()
+            && self.param.index == *index
+        {
+            return self.replace_ty;
         }
         t.super_fold_with(self)
     }

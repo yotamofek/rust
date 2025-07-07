@@ -194,10 +194,9 @@ impl<'tcx> MarkSymbolVisitor<'tcx> {
                     if let (Res::Local(id_l), Res::Local(id_r)) = (
                         typeck_results.qpath_res(qpath_l, lhs.hir_id),
                         typeck_results.qpath_res(qpath_r, rhs.hir_id),
-                    ) {
-                        if id_l == id_r {
-                            return true;
-                        }
+                    ) && id_l == id_r
+                    {
+                        return true;
                     }
                     return false;
                 }

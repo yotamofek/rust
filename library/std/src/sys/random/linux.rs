@@ -131,22 +131,20 @@ fn getrandom(mut bytes: &mut [u8], insecure: bool) {
 
     // When we want cryptographic strength, we need to wait for the CPRNG-pool
     // to become initialized. Do this by polling `/dev/random` until it is ready.
-    if !insecure {
-        if !URANDOM_READY.load(Acquire) {
-            let random = File::open("/dev/random").expect("failed to open /dev/random");
-            let mut fd = libc::pollfd { fd: random.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+    if !insecure && !URANDOM_READY.load(Acquire) {
+        let random = File::open("/dev/random").expect("failed to open /dev/random");
+        let mut fd = libc::pollfd { fd: random.as_raw_fd(), events: libc::POLLIN, revents: 0 };
 
-            while !URANDOM_READY.load(Acquire) {
-                let ret = unsafe { libc::poll(&mut fd, 1, -1) };
-                match ret {
-                    1 => {
-                        assert_eq!(fd.revents, libc::POLLIN);
-                        URANDOM_READY.store(true, Release);
-                        break;
-                    }
-                    -1 if errno() == libc::EINTR => continue,
-                    _ => panic!("poll(\"/dev/random\") failed"),
+        while !URANDOM_READY.load(Acquire) {
+            let ret = unsafe { libc::poll(&mut fd, 1, -1) };
+            match ret {
+                1 => {
+                    assert_eq!(fd.revents, libc::POLLIN);
+                    URANDOM_READY.store(true, Release);
+                    break;
                 }
+                -1 if errno() == libc::EINTR => continue,
+                _ => panic!("poll(\"/dev/random\") failed"),
             }
         }
     }

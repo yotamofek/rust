@@ -536,15 +536,15 @@ impl<'a, 'tcx> CrateLoader<'a, 'tcx> {
             let source = self.cstore.get_crate_data(cnum).cdata.source();
             if let Some(entry) = self.sess.opts.externs.get(name.as_str()) {
                 // Only use `--extern crate_name=path` here, not `--extern crate_name`.
-                if let Some(mut files) = entry.files() {
-                    if files.any(|l| {
+                if let Some(mut files) = entry.files()
+                    && files.any(|l| {
                         let l = l.canonicalized();
                         source.dylib.as_ref().map(|(p, _)| p) == Some(l)
                             || source.rlib.as_ref().map(|(p, _)| p) == Some(l)
                             || source.rmeta.as_ref().map(|(p, _)| p) == Some(l)
-                    }) {
-                        return Some(cnum);
-                    }
+                    })
+                {
+                    return Some(cnum);
                 }
                 continue;
             }

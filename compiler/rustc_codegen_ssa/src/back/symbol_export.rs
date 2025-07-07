@@ -593,10 +593,10 @@ fn symbol_export_level(tcx: TyCtxt<'_>, sym_def_id: DefId) -> SymbolExportLevel 
     if is_extern && !std_internal {
         let target = &tcx.sess.target.llvm_target;
         // WebAssembly cannot export data symbols, so reduce their export level
-        if target.contains("emscripten") {
-            if let DefKind::Static { .. } = tcx.def_kind(sym_def_id) {
-                return SymbolExportLevel::Rust;
-            }
+        if target.contains("emscripten")
+            && let DefKind::Static { .. } = tcx.def_kind(sym_def_id)
+        {
+            return SymbolExportLevel::Rust;
         }
 
         SymbolExportLevel::C

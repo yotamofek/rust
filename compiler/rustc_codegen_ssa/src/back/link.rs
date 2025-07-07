@@ -62,10 +62,10 @@ use crate::{
 };
 
 pub fn ensure_removed(dcx: DiagCtxtHandle<'_>, path: &Path) {
-    if let Err(e) = fs::remove_file(path) {
-        if e.kind() != io::ErrorKind::NotFound {
-            dcx.err(format!("failed to remove {}: {}", path.display(), e));
-        }
+    if let Err(e) = fs::remove_file(path)
+        && e.kind() != io::ErrorKind::NotFound
+    {
+        dcx.err(format!("failed to remove {}: {}", path.display(), e));
     }
 }
 
@@ -172,10 +172,10 @@ pub fn link_binary(
                 );
             }
 
-            if sess.target.binary_format == BinaryFormat::Elf {
-                if let Err(err) = warn_if_linked_with_gold(sess, &out_filename) {
-                    info!(?err, "Error while checking if gold was the linker");
-                }
+            if sess.target.binary_format == BinaryFormat::Elf
+                && let Err(err) = warn_if_linked_with_gold(sess, &out_filename)
+            {
+                info!(?err, "Error while checking if gold was the linker");
             }
 
             if output.is_stdout() {
@@ -904,21 +904,19 @@ fn link_natively(
 
             // Hide some progress messages from link.exe that we don't care about.
             // See https://github.com/chromium/chromium/blob/bfa41e41145ffc85f041384280caf2949bb7bd72/build/toolchain/win/tool_wrapper.py#L144-L146
-            if is_msvc_link_exe {
-                if let Ok(str) = str::from_utf8(&prog.stdout) {
-                    let mut output = String::with_capacity(str.len());
-                    for line in stdout.lines() {
-                        if line.starts_with("   Creating library")
-                            || line.starts_with("Generating code")
-                            || line.starts_with("Finished generating code")
-                        {
-                            continue;
-                        }
-                        output += line;
-                        output += "\r\n"
+            if is_msvc_link_exe && let Ok(str) = str::from_utf8(&prog.stdout) {
+                let mut output = String::with_capacity(str.len());
+                for line in stdout.lines() {
+                    if line.starts_with("   Creating library")
+                        || line.starts_with("Generating code")
+                        || line.starts_with("Finished generating code")
+                    {
+                        continue;
                     }
-                    stdout = escape_string(output.trim().as_bytes())
+                    output += line;
+                    output += "\r\n"
                 }
+                stdout = escape_string(output.trim().as_bytes())
             }
 
             let level = codegen_results.crate_info.lint_levels.linker_messages;
@@ -3403,12 +3401,12 @@ fn warn_if_linked_with_gold(sess: &Session, path: &Path) -> Result<(), Box<dyn s
 
         let section =
             elf.sections(endian, data)?.section_by_name(endian, b".note.gnu.gold-version");
-        if let Some((_, section)) = section {
-            if let Some(mut notes) = section.notes(endian, data)? {
-                return Ok(notes.any(|note| {
-                    note.is_ok_and(|note| note.n_type(endian) == elf::NT_GNU_GOLD_VERSION)
-                }));
-            }
+        if let Some((_, section)) = section
+            && let Some(mut notes) = section.notes(endian, data)?
+        {
+            return Ok(notes.any(|note| {
+                note.is_ok_and(|note| note.n_type(endian) == elf::NT_GNU_GOLD_VERSION)
+            }));
         }
 
         Ok(false)

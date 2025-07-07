@@ -1541,10 +1541,10 @@ impl<T> Option<T> {
     where
         P: FnOnce(&T) -> bool,
     {
-        if let Some(x) = self {
-            if predicate(&x) {
-                return Some(x);
-            }
+        if let Some(x) = self
+            && predicate(&x)
+        {
+            return Some(x);
         }
         None
     }

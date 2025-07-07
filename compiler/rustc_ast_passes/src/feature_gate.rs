@@ -525,26 +525,26 @@ pub fn check_crate(krate: &ast::Crate, sess: &Session, features: &Features) {
     gate_all!(super_let, "`super let` is experimental");
     gate_all!(frontmatter, "frontmatters are experimental");
 
-    if !visitor.features.never_patterns() {
-        if let Some(spans) = spans.get(&sym::never_patterns) {
-            for &span in spans {
-                if span.allows_unstable(sym::never_patterns) {
-                    continue;
-                }
-                let sm = sess.source_map();
-                // We gate two types of spans: the span of a `!` pattern, and the span of a
-                // match arm without a body. For the latter we want to give the user a normal
-                // error.
-                if let Ok(snippet) = sm.span_to_snippet(span)
-                    && snippet == "!"
-                {
-                    #[allow(rustc::untranslatable_diagnostic)] // FIXME: make this translatable
-                    feature_err(sess, sym::never_patterns, span, "`!` patterns are experimental")
-                        .emit();
-                } else {
-                    let suggestion = span.shrink_to_hi();
-                    sess.dcx().emit_err(errors::MatchArmWithNoBody { span, suggestion });
-                }
+    if !visitor.features.never_patterns()
+        && let Some(spans) = spans.get(&sym::never_patterns)
+    {
+        for &span in spans {
+            if span.allows_unstable(sym::never_patterns) {
+                continue;
+            }
+            let sm = sess.source_map();
+            // We gate two types of spans: the span of a `!` pattern, and the span of a
+            // match arm without a body. For the latter we want to give the user a normal
+            // error.
+            if let Ok(snippet) = sm.span_to_snippet(span)
+                && snippet == "!"
+            {
+                #[allow(rustc::untranslatable_diagnostic)] // FIXME: make this translatable
+                feature_err(sess, sym::never_patterns, span, "`!` patterns are experimental")
+                    .emit();
+            } else {
+                let suggestion = span.shrink_to_hi();
+                sess.dcx().emit_err(errors::MatchArmWithNoBody { span, suggestion });
             }
         }
     }
@@ -630,16 +630,11 @@ fn check_incompatible_features(sess: &Session, features: &Features) {
         .iter()
         .filter(|(f1, f2)| features.enabled(*f1) && features.enabled(*f2))
     {
-        if let Some((f1_name, f1_span)) = enabled_features.clone().find(|(name, _)| name == f1) {
-            if let Some((f2_name, f2_span)) = enabled_features.clone().find(|(name, _)| name == f2)
-            {
-                let spans = vec![f1_span, f2_span];
-                sess.dcx().emit_err(errors::IncompatibleFeatures {
-                    spans,
-                    f1: f1_name,
-                    f2: f2_name,
-                });
-            }
+        if let Some((f1_name, f1_span)) = enabled_features.clone().find(|(name, _)| name == f1)
+            && let Some((f2_name, f2_span)) = enabled_features.clone().find(|(name, _)| name == f2)
+        {
+            let spans = vec![f1_span, f2_span];
+            sess.dcx().emit_err(errors::IncompatibleFeatures { spans, f1: f1_name, f2: f2_name });
         }
     }
 }

@@ -35,10 +35,10 @@ where
     let mut next_child = move_data.move_paths[path].first_child;
     while let Some(child_index) = next_child {
         let move_path_children = &move_data.move_paths[child_index];
-        if let Some(&elem) = move_path_children.place.projection.last() {
-            if cond(elem) {
-                return Some(child_index);
-            }
+        if let Some(&elem) = move_path_children.place.projection.last()
+            && cond(elem)
+        {
+            return Some(child_index);
         }
         next_child = move_path_children.next_sibling;
     }
@@ -123,10 +123,9 @@ pub fn drop_flag_effects_for_location<'tcx, F>(
     // Drop does not count as a move but we should still consider the variable uninitialized.
     if let Some(Terminator { kind: TerminatorKind::Drop { place, .. }, .. }) =
         body.stmt_at(loc).right()
+        && let LookupResult::Exact(mpi) = move_data.rev_lookup.find(place.as_ref())
     {
-        if let LookupResult::Exact(mpi) = move_data.rev_lookup.find(place.as_ref()) {
-            on_all_children_bits(move_data, mpi, |mpi| callback(mpi, DropFlagState::Absent))
-        }
+        on_all_children_bits(move_data, mpi, |mpi| callback(mpi, DropFlagState::Absent))
     }
 
     debug!("drop_flag_effects: assignment for location({:?})", loc);

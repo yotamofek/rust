@@ -784,10 +784,10 @@ impl<'tcx> LateContext<'tcx> {
                 self_ty: Ty<'tcx>,
                 trait_ref: Option<ty::TraitRef<'tcx>>,
             ) -> Result<(), PrintError> {
-                if trait_ref.is_none() {
-                    if let ty::Adt(def, args) = self_ty.kind() {
-                        return self.print_def_path(def.did(), args);
-                    }
+                if trait_ref.is_none()
+                    && let ty::Adt(def, args) = self_ty.kind()
+                {
+                    return self.print_def_path(def.did(), args);
                 }
 
                 // This shouldn't ever be needed, but just in case:

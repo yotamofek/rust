@@ -1089,15 +1089,15 @@ impl<'a, 'tcx> MirBorrowckCtxt<'a, '_, 'tcx> {
     ) {
         let (sd, rw) = kind;
 
-        if let Activation(_, borrow_index) = rw {
-            if self.reservation_error_reported.contains(&place_span.0) {
-                debug!(
-                    "skipping access_place for activation of invalid reservation \
+        if let Activation(_, borrow_index) = rw
+            && self.reservation_error_reported.contains(&place_span.0)
+        {
+            debug!(
+                "skipping access_place for activation of invalid reservation \
                      place: {:?} borrow_index: {:?}",
-                    place_span.0, borrow_index
-                );
-                return;
-            }
+                place_span.0, borrow_index
+            );
+            return;
         }
 
         // Check is_empty() first because it's the common case, and doing that

@@ -2881,13 +2881,13 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // If the pattern is irrefutable and `expected` is an infer ty, we try to equate it
         // to an array if the given pattern allows it. See issue #76342
-        if self.pat_is_irrefutable(pat_info.decl_origin) && expected.is_ty_var() {
-            if let Some(resolved_arr_ty) =
+        if self.pat_is_irrefutable(pat_info.decl_origin)
+            && expected.is_ty_var()
+            && let Some(resolved_arr_ty) =
                 self.try_resolve_slice_ty_to_array_ty(before, slice, span)
-            {
-                debug!(?resolved_arr_ty);
-                let _ = self.demand_eqtype(span, expected, resolved_arr_ty);
-            }
+        {
+            debug!(?resolved_arr_ty);
+            let _ = self.demand_eqtype(span, expected, resolved_arr_ty);
         }
 
         let expected = self.structurally_resolve_type(span, expected);

@@ -65,10 +65,10 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
             // by handling its parent recursively; at worst we will destroy or
             // rearrange the parent through the grandparent, thus change the
             // link to the parent inside the leaf.
-            if let Ok(parent) = unsafe { pos.reborrow_mut() }.into_node().ascend() {
-                if !parent.into_node().forget_type().fix_node_and_affected_ancestors(alloc) {
-                    handle_emptied_internal_root();
-                }
+            if let Ok(parent) = unsafe { pos.reborrow_mut() }.into_node().ascend()
+                && !parent.into_node().forget_type().fix_node_and_affected_ancestors(alloc)
+            {
+                handle_emptied_internal_root();
             }
         }
         (old_kv, pos)

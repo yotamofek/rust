@@ -655,15 +655,12 @@ fn write_out_deps(tcx: TyCtxt<'_>, outputs: &OutputFilenames, out_filenames: &[P
         }
 
         if sess.binary_dep_depinfo() {
-            if let Some(ref backend) = sess.opts.unstable_opts.codegen_backend {
-                if backend.contains('.') {
-                    // If the backend name contain a `.`, it is the path to an external dynamic
-                    // library. If not, it is not a path.
-                    files.extend(hash_iter_files(
-                        iter::once(backend.to_string()),
-                        checksum_hash_algo,
-                    ));
-                }
+            if let Some(ref backend) = sess.opts.unstable_opts.codegen_backend
+                && backend.contains('.')
+            {
+                // If the backend name contain a `.`, it is the path to an external dynamic
+                // library. If not, it is not a path.
+                files.extend(hash_iter_files(iter::once(backend.to_string()), checksum_hash_algo));
             }
 
             for &cnum in tcx.crates(()) {
@@ -813,24 +810,22 @@ pub fn write_dep_info(tcx: TyCtxt<'_>) {
         generated_output_paths(tcx, &outputs, sess.io.output_file.is_some(), crate_name);
 
     // Ensure the source file isn't accidentally overwritten during compilation.
-    if let Some(input_path) = sess.io.input.opt_path() {
-        if sess.opts.will_create_output_file() {
-            if output_contains_path(&output_paths, input_path) {
-                sess.dcx().emit_fatal(errors::InputFileWouldBeOverWritten { path: input_path });
-            }
-            if let Some(dir_path) = output_conflicts_with_dir(&output_paths) {
-                sess.dcx().emit_fatal(errors::GeneratedFileConflictsWithDirectory {
-                    input_path,
-                    dir_path,
-                });
-            }
+    if let Some(input_path) = sess.io.input.opt_path()
+        && sess.opts.will_create_output_file()
+    {
+        if output_contains_path(&output_paths, input_path) {
+            sess.dcx().emit_fatal(errors::InputFileWouldBeOverWritten { path: input_path });
+        }
+        if let Some(dir_path) = output_conflicts_with_dir(&output_paths) {
+            sess.dcx()
+                .emit_fatal(errors::GeneratedFileConflictsWithDirectory { input_path, dir_path });
         }
     }
 
-    if let Some(ref dir) = sess.io.temps_dir {
-        if fs::create_dir_all(dir).is_err() {
-            sess.dcx().emit_fatal(errors::TempsDirError);
-        }
+    if let Some(ref dir) = sess.io.temps_dir
+        && fs::create_dir_all(dir).is_err()
+    {
+        sess.dcx().emit_fatal(errors::TempsDirError);
     }
 
     write_out_deps(tcx, &outputs, &output_paths);
@@ -838,12 +833,11 @@ pub fn write_dep_info(tcx: TyCtxt<'_>) {
     let only_dep_info = sess.opts.output_types.contains_key(&OutputType::DepInfo)
         && sess.opts.output_types.len() == 1;
 
-    if !only_dep_info {
-        if let Some(ref dir) = sess.io.output_dir {
-            if fs::create_dir_all(dir).is_err() {
-                sess.dcx().emit_fatal(errors::OutDirError);
-            }
-        }
+    if !only_dep_info
+        && let Some(ref dir) = sess.io.output_dir
+        && fs::create_dir_all(dir).is_err()
+    {
+        sess.dcx().emit_fatal(errors::OutDirError);
     }
 }
 

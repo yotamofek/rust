@@ -996,12 +996,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
                 // ... except when we try to 'break rust;'.
                 // ICE this expression in particular (see #43162).
-                if let ExprKind::Path(QPath::Resolved(_, path)) = e.kind {
-                    if let [segment] = path.segments
-                        && segment.ident.name == sym::rust
-                    {
-                        fatally_break_rust(self.tcx, expr.span);
-                    }
+                if let ExprKind::Path(QPath::Resolved(_, path)) = e.kind
+                    && let [segment] = path.segments
+                    && segment.ident.name == sym::rust
+                {
+                    fatally_break_rust(self.tcx, expr.span);
                 }
             }
 
@@ -2892,17 +2891,16 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     }
                 }
                 ty::Tuple(tys) => {
-                    if let Ok(index) = field.as_str().parse::<usize>() {
-                        if field.name == sym::integer(index) {
-                            if let Some(&field_ty) = tys.get(index) {
-                                let adjustments = self.adjust_steps(&autoderef);
-                                self.apply_adjustments(base, adjustments);
-                                self.register_predicates(autoderef.into_obligations());
+                    if let Ok(index) = field.as_str().parse::<usize>()
+                        && field.name == sym::integer(index)
+                        && let Some(&field_ty) = tys.get(index)
+                    {
+                        let adjustments = self.adjust_steps(&autoderef);
+                        self.apply_adjustments(base, adjustments);
+                        self.register_predicates(autoderef.into_obligations());
 
-                                self.write_field_index(expr.hir_id, FieldIdx::from_usize(index));
-                                return field_ty;
-                            }
-                        }
+                        self.write_field_index(expr.hir_id, FieldIdx::from_usize(index));
+                        return field_ty;
                     }
                 }
                 _ => {}
@@ -3776,10 +3774,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     }
 
     fn check_expr_asm(&self, asm: &'tcx hir::InlineAsm<'tcx>, span: Span) -> Ty<'tcx> {
-        if let rustc_ast::AsmMacro::NakedAsm = asm.asm_macro {
-            if !find_attr!(self.tcx.get_all_attrs(self.body_id), AttributeKind::Naked(..)) {
-                self.tcx.dcx().emit_err(NakedAsmOutsideNakedFn { span });
-            }
+        if let rustc_ast::AsmMacro::NakedAsm = asm.asm_macro
+            && !find_attr!(self.tcx.get_all_attrs(self.body_id), AttributeKind::Naked(..))
+        {
+            self.tcx.dcx().emit_err(NakedAsmOutsideNakedFn { span });
         }
 
         let mut diverge = asm.asm_macro.diverges(asm.options);
@@ -3967,23 +3965,22 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 ty::Tuple(tys) => {
                     if let Ok(index) = field.as_str().parse::<usize>()
                         && field.name == sym::integer(index)
+                        && let Some(&field_ty) = tys.get(index)
                     {
-                        if let Some(&field_ty) = tys.get(index) {
-                            if self.tcx.features().offset_of_slice() {
-                                self.require_type_has_static_alignment(field_ty, expr.span);
-                            } else {
-                                self.require_type_is_sized(
-                                    field_ty,
-                                    expr.span,
-                                    ObligationCauseCode::Misc,
-                                );
-                            }
-
-                            field_indices.push((FIRST_VARIANT, index.into()));
-                            current_container = field_ty;
-
-                            continue;
+                        if self.tcx.features().offset_of_slice() {
+                            self.require_type_has_static_alignment(field_ty, expr.span);
+                        } else {
+                            self.require_type_is_sized(
+                                field_ty,
+                                expr.span,
+                                ObligationCauseCode::Misc,
+                            );
                         }
+
+                        field_indices.push((FIRST_VARIANT, index.into()));
+                        current_container = field_ty;
+
+                        continue;
                     }
                 }
                 _ => (),

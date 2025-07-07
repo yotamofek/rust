@@ -1698,10 +1698,10 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         mut start_block: BasicBlock,
         candidates: &mut [&mut Candidate<'tcx>],
     ) -> BasicBlock {
-        if let [first, ..] = candidates {
-            if first.false_edge_start_block.is_none() {
-                first.false_edge_start_block = Some(start_block);
-            }
+        if let [first, ..] = candidates
+            && first.false_edge_start_block.is_none()
+        {
+            first.false_edge_start_block = Some(start_block);
         }
 
         // Process a prefix of the candidates.

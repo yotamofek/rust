@@ -139,10 +139,10 @@ pub(crate) fn current_id() -> ThreadId {
     // If accessing the persistent thread ID takes multiple TLS accesses, try
     // to retrieve it from the current thread handle, which will only take one
     // TLS access.
-    if !id::CHEAP {
-        if let Some(id) = try_with_current(|t| t.map(|t| t.id())) {
-            return id;
-        }
+    if !id::CHEAP
+        && let Some(id) = try_with_current(|t| t.map(|t| t.id()))
+    {
+        return id;
     }
 
     id::get_or_init()

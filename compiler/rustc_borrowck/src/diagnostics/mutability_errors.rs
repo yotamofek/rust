@@ -405,19 +405,19 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                 {
                     if upvar_ident.name == kw::SelfLower {
                         for (_, node) in self.infcx.tcx.hir_parent_iter(upvar_hir_id) {
-                            if let Some(fn_decl) = node.fn_decl() {
-                                if !matches!(
+                            if let Some(fn_decl) = node.fn_decl()
+                                && !matches!(
                                     fn_decl.implicit_self,
                                     hir::ImplicitSelfKind::RefImm | hir::ImplicitSelfKind::RefMut
-                                ) {
-                                    err.span_suggestion_verbose(
-                                        upvar_ident.span.shrink_to_lo(),
-                                        "consider changing this to be mutable",
-                                        "mut ",
-                                        Applicability::MachineApplicable,
-                                    );
-                                    break;
-                                }
+                                )
+                            {
+                                err.span_suggestion_verbose(
+                                    upvar_ident.span.shrink_to_lo(),
+                                    "consider changing this to be mutable",
+                                    "mut ",
+                                    Applicability::MachineApplicable,
+                                );
+                                break;
                             }
                         }
                     } else {

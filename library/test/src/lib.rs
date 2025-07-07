@@ -135,11 +135,11 @@ pub fn test_main_with_exit_callback<F: FnOnce()>(
                     if !info.can_unwind() {
                         std::mem::forget(std::io::stderr().lock());
                         let mut stdout = ManuallyDrop::new(std::io::stdout().lock());
-                        if let Some(captured) = io::set_output_capture(None) {
-                            if let Ok(data) = captured.lock() {
-                                let _ = stdout.write_all(&data);
-                                let _ = stdout.flush();
-                            }
+                        if let Some(captured) = io::set_output_capture(None)
+                            && let Ok(data) = captured.lock()
+                        {
+                            let _ = stdout.write_all(&data);
+                            let _ = stdout.flush();
                         }
                     }
                     builtin_panic_hook(info);
@@ -299,13 +299,11 @@ where
 
     impl RunningTest {
         fn join(self, completed_test: &mut CompletedTest) {
-            if let Some(join_handle) = self.join_handle {
-                if let Err(_) = join_handle.join() {
-                    if let TrOk = completed_test.result {
-                        completed_test.result =
-                            TrFailedMsg("panicked after reporting success".to_string());
-                    }
-                }
+            if let Some(join_handle) = self.join_handle
+                && let Err(_) = join_handle.join()
+                && let TrOk = completed_test.result
+            {
+                completed_test.result = TrFailedMsg("panicked after reporting success".to_string());
             }
         }
     }

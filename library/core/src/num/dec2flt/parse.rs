@@ -133,13 +133,13 @@ fn parse_partial_number(mut s: &[u8]) -> Option<(Decimal, usize)> {
 
     // handle scientific format
     let mut exp_number = 0_i64;
-    if let Some((&c, s_next)) = s.split_first() {
-        if c == b'e' || c == b'E' {
-            s = s_next;
-            // If None, we have no trailing digits after exponent, or an invalid float.
-            exp_number = parse_scientific(&mut s)?;
-            exponent += exp_number;
-        }
+    if let Some((&c, s_next)) = s.split_first()
+        && (c == b'e' || c == b'E')
+    {
+        s = s_next;
+        // If None, we have no trailing digits after exponent, or an invalid float.
+        exp_number = parse_scientific(&mut s)?;
+        exponent += exp_number;
     }
 
     let len = s.offset_from(start) as _;
@@ -186,10 +186,10 @@ fn parse_partial_number(mut s: &[u8]) -> Option<(Decimal, usize)> {
 /// as well as two slices with integer and fractional parts
 /// and the parsed exponent.
 pub fn parse_number(s: &[u8]) -> Option<Decimal> {
-    if let Some((float, rest)) = parse_partial_number(s) {
-        if rest == s.len() {
-            return Some(float);
-        }
+    if let Some((float, rest)) = parse_partial_number(s)
+        && rest == s.len()
+    {
+        return Some(float);
     }
     None
 }

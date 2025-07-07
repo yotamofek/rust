@@ -97,12 +97,12 @@ pub fn reveal_actual_level(
     // future compatibility warning.
     if level == Level::Warn && lint != LintId::of(FORBIDDEN_LINT_GROUPS) {
         let (warnings_level, warnings_src) = probe_for_lint_level(LintId::of(builtin::WARNINGS));
-        if let Some((configured_warning_level, configured_lint_id)) = warnings_level {
-            if configured_warning_level != Level::Warn {
-                level = configured_warning_level;
-                lint_id = configured_lint_id;
-                *src = warnings_src;
-            }
+        if let Some((configured_warning_level, configured_lint_id)) = warnings_level
+            && configured_warning_level != Level::Warn
+        {
+            level = configured_warning_level;
+            lint_id = configured_lint_id;
+            *src = warnings_src;
         }
     }
 

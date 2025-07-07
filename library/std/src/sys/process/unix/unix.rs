@@ -501,11 +501,10 @@ impl Command {
                         match pidfd {
                             Ok(pidfd) => {
                                 support = FORK_EXEC;
-                                if let Some(Ok(pid)) = pidfd_getpid.get().map(|f| cvt(unsafe { f(pidfd) } as i32)) {
-                                    if pidfd_spawnp.get().is_some() && pid as u32 == our_pid {
+                                if let Some(Ok(pid)) = pidfd_getpid.get().map(|f| cvt(unsafe { f(pidfd) } as i32))
+                                    && pidfd_spawnp.get().is_some() && pid as u32 == our_pid {
                                         support = SPAWN
                                     }
-                                }
                                 unsafe { libc::close(pidfd) };
                             }
                             Err(e) if e.raw_os_error() == Some(libc::EMFILE) => {

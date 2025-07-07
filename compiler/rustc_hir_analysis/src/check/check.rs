@@ -501,12 +501,13 @@ fn sanity_check_found_hidden_type<'tcx>(
         // Nothing was actually constrained.
         return Ok(());
     }
-    if let ty::Alias(ty::Opaque, alias) = ty.ty.kind() {
-        if alias.def_id == key.def_id.to_def_id() && alias.args == key.args {
-            // Nothing was actually constrained, this is an opaque usage that was
-            // only discovered to be opaque after inference vars resolved.
-            return Ok(());
-        }
+    if let ty::Alias(ty::Opaque, alias) = ty.ty.kind()
+        && alias.def_id == key.def_id.to_def_id()
+        && alias.args == key.args
+    {
+        // Nothing was actually constrained, this is an opaque usage that was
+        // only discovered to be opaque after inference vars resolved.
+        return Ok(());
     }
     let strip_vars = |ty: Ty<'tcx>| {
         ty.fold_with(&mut BottomUpFolder {
@@ -722,14 +723,14 @@ fn is_enum_of_nonnullable_ptr<'tcx>(
 }
 
 fn check_static_linkage(tcx: TyCtxt<'_>, def_id: LocalDefId) {
-    if tcx.codegen_fn_attrs(def_id).import_linkage.is_some() {
-        if match tcx.type_of(def_id).instantiate_identity().kind() {
+    if tcx.codegen_fn_attrs(def_id).import_linkage.is_some()
+        && match tcx.type_of(def_id).instantiate_identity().kind() {
             ty::RawPtr(_, _) => false,
             ty::Adt(adt_def, args) => !is_enum_of_nonnullable_ptr(tcx, *adt_def, *args),
             _ => true,
-        } {
-            tcx.dcx().emit_err(errors::LinkageType { span: tcx.def_span(def_id) });
         }
+    {
+        tcx.dcx().emit_err(errors::LinkageType { span: tcx.def_span(def_id) });
     }
 }
 
@@ -1259,12 +1260,12 @@ fn check_impl_items_against_trait<'tcx>(
                 }
             }
 
-            if let Some(required_items) = &must_implement_one_of {
-                if is_implemented_here {
-                    let trait_item = tcx.associated_item(trait_item_id);
-                    if required_items.contains(&trait_item.ident(tcx)) {
-                        must_implement_one_of = None;
-                    }
+            if let Some(required_items) = &must_implement_one_of
+                && is_implemented_here
+            {
+                let trait_item = tcx.associated_item(trait_item_id);
+                if required_items.contains(&trait_item.ident(tcx)) {
+                    must_implement_one_of = None;
                 }
             }
 
@@ -1463,24 +1464,24 @@ pub(super) fn check_packed_inner(
     def_id: DefId,
     stack: &mut Vec<DefId>,
 ) -> Option<Vec<(DefId, Span)>> {
-    if let ty::Adt(def, args) = tcx.type_of(def_id).instantiate_identity().kind() {
-        if def.is_struct() || def.is_union() {
-            if def.repr().align.is_some() {
-                return Some(vec![(def.did(), DUMMY_SP)]);
-            }
-
-            stack.push(def_id);
-            for field in &def.non_enum_variant().fields {
-                if let ty::Adt(def, _) = field.ty(tcx, args).kind()
-                    && !stack.contains(&def.did())
-                    && let Some(mut defs) = check_packed_inner(tcx, def.did(), stack)
-                {
-                    defs.push((def.did(), field.ident(tcx).span));
-                    return Some(defs);
-                }
-            }
-            stack.pop();
+    if let ty::Adt(def, args) = tcx.type_of(def_id).instantiate_identity().kind()
+        && (def.is_struct() || def.is_union())
+    {
+        if def.repr().align.is_some() {
+            return Some(vec![(def.did(), DUMMY_SP)]);
         }
+
+        stack.push(def_id);
+        for field in &def.non_enum_variant().fields {
+            if let ty::Adt(def, _) = field.ty(tcx, args).kind()
+                && !stack.contains(&def.did())
+                && let Some(mut defs) = check_packed_inner(tcx, def.did(), stack)
+            {
+                defs.push((def.did(), field.ident(tcx).span));
+                return Some(defs);
+            }
+        }
+        stack.pop();
     }
 
     None

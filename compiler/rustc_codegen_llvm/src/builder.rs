@@ -631,10 +631,10 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
                         bx.nonnull_metadata(load);
                     }
 
-                    if let Some(pointee) = layout.pointee_info_at(bx, offset) {
-                        if let Some(_) = pointee.safe {
-                            bx.align_metadata(load, pointee.align);
-                        }
+                    if let Some(pointee) = layout.pointee_info_at(bx, offset)
+                        && let Some(_) = pointee.safe
+                    {
+                        bx.align_metadata(load, pointee.align);
                     }
                 }
                 abi::Primitive::Float(_) => {}
@@ -648,14 +648,12 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
             let mut const_llval = None;
             let llty = place.layout.llvm_type(self);
             unsafe {
-                if let Some(global) = llvm::LLVMIsAGlobalVariable(place.val.llval) {
-                    if llvm::LLVMIsGlobalConstant(global) == llvm::True {
-                        if let Some(init) = llvm::LLVMGetInitializer(global) {
-                            if self.val_ty(init) == llty {
-                                const_llval = Some(init);
-                            }
-                        }
-                    }
+                if let Some(global) = llvm::LLVMIsAGlobalVariable(place.val.llval)
+                    && llvm::LLVMIsGlobalConstant(global) == llvm::True
+                    && let Some(init) = llvm::LLVMGetInitializer(global)
+                    && self.val_ty(init) == llty
+                {
+                    const_llval = Some(init);
                 }
             }
             let llval = const_llval.unwrap_or_else(|| {

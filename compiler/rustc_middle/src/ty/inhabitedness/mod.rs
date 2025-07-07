@@ -62,10 +62,10 @@ pub(crate) fn provide(providers: &mut Providers) {
 /// Returns an `InhabitedPredicate` that is generic over type parameters and
 /// requires calling [`InhabitedPredicate::instantiate`]
 fn inhabited_predicate_adt(tcx: TyCtxt<'_>, def_id: DefId) -> InhabitedPredicate<'_> {
-    if let Some(def_id) = def_id.as_local() {
-        if matches!(tcx.representability(def_id), ty::Representability::Infinite(_)) {
-            return InhabitedPredicate::True;
-        }
+    if let Some(def_id) = def_id.as_local()
+        && matches!(tcx.representability(def_id), ty::Representability::Infinite(_))
+    {
+        return InhabitedPredicate::True;
     }
     let adt = tcx.adt_def(def_id);
     InhabitedPredicate::any(

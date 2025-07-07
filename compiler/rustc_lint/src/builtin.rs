@@ -169,20 +169,19 @@ impl<'tcx> LateLintPass<'tcx> for NonShorthandFieldPatterns {
                     // (Issue #49588)
                     continue;
                 }
-                if let PatKind::Binding(binding_annot, _, ident, None) = fieldpat.pat.kind {
-                    if cx.tcx.find_field_index(ident, variant)
+                if let PatKind::Binding(binding_annot, _, ident, None) = fieldpat.pat.kind
+                    && cx.tcx.find_field_index(ident, variant)
                         == Some(cx.typeck_results().field_index(fieldpat.hir_id))
-                    {
-                        cx.emit_span_lint(
-                            NON_SHORTHAND_FIELD_PATTERNS,
-                            fieldpat.span,
-                            BuiltinNonShorthandFieldPatterns {
-                                ident,
-                                suggestion: fieldpat.span,
-                                prefix: binding_annot.prefix_str(),
-                            },
-                        );
-                    }
+                {
+                    cx.emit_span_lint(
+                        NON_SHORTHAND_FIELD_PATTERNS,
+                        fieldpat.span,
+                        BuiltinNonShorthandFieldPatterns {
+                            ident,
+                            suggestion: fieldpat.span,
+                            prefix: binding_annot.prefix_str(),
+                        },
+                    );
                 }
             }
         }
@@ -608,10 +607,10 @@ impl<'tcx> LateLintPass<'tcx> for MissingCopyImplementations {
         // Default value of clippy::trivially_copy_pass_by_ref
         const MAX_SIZE: u64 = 256;
 
-        if let Some(size) = cx.layout_of(ty).ok().map(|l| l.size.bytes()) {
-            if size > MAX_SIZE {
-                return;
-            }
+        if let Some(size) = cx.layout_of(ty).ok().map(|l| l.size.bytes())
+            && size > MAX_SIZE
+        {
+            return;
         }
 
         if type_allowed_to_implement_copy(
@@ -1064,10 +1063,9 @@ impl<'tcx> LateLintPass<'tcx> for MutableTransmutes {
     fn check_expr(&mut self, cx: &LateContext<'_>, expr: &hir::Expr<'_>) {
         if let Some((&ty::Ref(_, _, from_mutbl), &ty::Ref(_, _, to_mutbl))) =
             get_transmute_from_to(cx, expr).map(|(ty1, ty2)| (ty1.kind(), ty2.kind()))
+            && from_mutbl < to_mutbl
         {
-            if from_mutbl < to_mutbl {
-                cx.emit_span_lint(MUTABLE_TRANSMUTES, expr.span, BuiltinMutablesTransmutes);
-            }
+            cx.emit_span_lint(MUTABLE_TRANSMUTES, expr.span, BuiltinMutablesTransmutes);
         }
 
         fn get_transmute_from_to<'tcx>(
@@ -1745,10 +1743,10 @@ impl EarlyLintPass for EllipsisInclusiveRangePatterns {
     }
 
     fn check_pat_post(&mut self, _cx: &EarlyContext<'_>, pat: &ast::Pat) {
-        if let Some(node_id) = self.node_id {
-            if pat.id == node_id {
-                self.node_id = None
-            }
+        if let Some(node_id) = self.node_id
+            && pat.id == node_id
+        {
+            self.node_id = None
         }
     }
 }
@@ -2467,14 +2465,14 @@ impl<'tcx> LateLintPass<'tcx> for InvalidValue {
                 if cx.tcx.is_diagnostic_item(sym::assume_init, def_id) {
                     // This is a call to *some* method named `assume_init`.
                     // See if the `self` parameter is one of the dangerous constructors.
-                    if let hir::ExprKind::Call(path_expr, _) = receiver.kind {
-                        if let hir::ExprKind::Path(ref qpath) = path_expr.kind {
-                            let def_id = cx.qpath_res(qpath, path_expr.hir_id).opt_def_id()?;
-                            match cx.tcx.get_diagnostic_name(def_id) {
-                                Some(sym::maybe_uninit_zeroed) => return Some(InitKind::Zeroed),
-                                Some(sym::maybe_uninit_uninit) => return Some(InitKind::Uninit),
-                                _ => {}
-                            }
+                    if let hir::ExprKind::Call(path_expr, _) = receiver.kind
+                        && let hir::ExprKind::Path(ref qpath) = path_expr.kind
+                    {
+                        let def_id = cx.qpath_res(qpath, path_expr.hir_id).opt_def_id()?;
+                        match cx.tcx.get_diagnostic_name(def_id) {
+                            Some(sym::maybe_uninit_zeroed) => return Some(InitKind::Zeroed),
+                            Some(sym::maybe_uninit_uninit) => return Some(InitKind::Uninit),
+                            _ => {}
                         }
                     }
                 }
@@ -2508,31 +2506,30 @@ impl<'tcx> LateLintPass<'tcx> for InvalidValue {
             });
 
             // Check if this ADT has a constrained layout (like `NonNull` and friends).
-            if let Ok(layout) = cx.tcx.layout_of(cx.typing_env().as_query_input(ty)) {
-                if let BackendRepr::Scalar(scalar) | BackendRepr::ScalarPair(scalar, _) =
+            if let Ok(layout) = cx.tcx.layout_of(cx.typing_env().as_query_input(ty))
+                && let BackendRepr::Scalar(scalar) | BackendRepr::ScalarPair(scalar, _) =
                     &layout.backend_repr
-                {
-                    let range = scalar.valid_range(cx);
-                    let msg = if !range.contains(0) {
-                        "must be non-null"
-                    } else if init == InitKind::Uninit && !scalar.is_always_valid(cx) {
-                        // Prefer reporting on the fields over the entire struct for uninit,
-                        // as the information bubbles out and it may be unclear why the type can't
-                        // be null from just its outside signature.
+            {
+                let range = scalar.valid_range(cx);
+                let msg = if !range.contains(0) {
+                    "must be non-null"
+                } else if init == InitKind::Uninit && !scalar.is_always_valid(cx) {
+                    // Prefer reporting on the fields over the entire struct for uninit,
+                    // as the information bubbles out and it may be unclear why the type can't
+                    // be null from just its outside signature.
 
-                        "must be initialized inside its custom valid range"
-                    } else {
-                        return field_err;
-                    };
-                    if let Some(field_err) = &mut field_err {
-                        // Most of the time, if the field error is the same as the struct error,
-                        // the struct error only happens because of the field error.
-                        if field_err.message.contains(msg) {
-                            field_err.message = format!("because {}", field_err.message);
-                        }
+                    "must be initialized inside its custom valid range"
+                } else {
+                    return field_err;
+                };
+                if let Some(field_err) = &mut field_err {
+                    // Most of the time, if the field error is the same as the struct error,
+                    // the struct error only happens because of the field error.
+                    if field_err.message.contains(msg) {
+                        field_err.message = format!("because {}", field_err.message);
                     }
-                    return Some(InitError::from(format!("`{ty}` {msg}")).nested(field_err));
                 }
+                return Some(InitError::from(format!("`{ty}` {msg}")).nested(field_err));
             }
             field_err
         }
@@ -2728,13 +2725,13 @@ impl<'tcx> LateLintPass<'tcx> for DerefNullPtr {
                 }
                 // check for call to `core::ptr::null` or `core::ptr::null_mut`
                 hir::ExprKind::Call(path, _) => {
-                    if let hir::ExprKind::Path(ref qpath) = path.kind {
-                        if let Some(def_id) = cx.qpath_res(qpath, path.hir_id).opt_def_id() {
-                            return matches!(
-                                cx.tcx.get_diagnostic_name(def_id),
-                                Some(sym::ptr_null | sym::ptr_null_mut)
-                            );
-                        }
+                    if let hir::ExprKind::Path(ref qpath) = path.kind
+                        && let Some(def_id) = cx.qpath_res(qpath, path.hir_id).opt_def_id()
+                    {
+                        return matches!(
+                            cx.tcx.get_diagnostic_name(def_id),
+                            Some(sym::ptr_null | sym::ptr_null_mut)
+                        );
                     }
                 }
                 _ => {}

@@ -1451,12 +1451,11 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
         mut lifetime: ResolvedArg,
         ident: Ident,
     ) -> ResolvedArg {
-        if let Some(&(opaque_def_id, _)) = opaque_capture_scopes.last() {
-            if let Err(guar) =
+        if let Some(&(opaque_def_id, _)) = opaque_capture_scopes.last()
+            && let Err(guar) =
                 self.check_lifetime_is_capturable(opaque_def_id, lifetime, ident.span)
-            {
-                lifetime = ResolvedArg::Error(guar);
-            }
+        {
+            lifetime = ResolvedArg::Error(guar);
         }
 
         for &(opaque_def_id, captures) in opaque_capture_scopes.iter().rev() {

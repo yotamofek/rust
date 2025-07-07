@@ -624,15 +624,15 @@ impl<'a> Parser<'a> {
             );
         }
 
-        if let TokenKind::Ident(symbol, _) = &self.prev_token.kind {
-            if ["def", "fun", "func", "function"].contains(&symbol.as_str()) {
-                err.span_suggestion_short(
-                    self.prev_token.span,
-                    format!("write `fn` instead of `{symbol}` to declare a function"),
-                    "fn",
-                    Applicability::MachineApplicable,
-                );
-            }
+        if let TokenKind::Ident(symbol, _) = &self.prev_token.kind
+            && ["def", "fun", "func", "function"].contains(&symbol.as_str())
+        {
+            err.span_suggestion_short(
+                self.prev_token.span,
+                format!("write `fn` instead of `{symbol}` to declare a function"),
+                "fn",
+                Applicability::MachineApplicable,
+            );
         }
 
         if let TokenKind::Ident(prev, _) = &self.prev_token.kind
@@ -1636,28 +1636,27 @@ impl<'a> Parser<'a> {
                 // ascription. Catch when this happens and continue.
                 self.token == token::Colon
             }
-        } {
-            if self.eat_noexpect(&token::Colon) {
-                let colon = self.prev_token.span;
-                match self.parse_expr() {
-                    Ok(expr) => {
-                        let sugg = cond.map(|cond| TernaryOperatorSuggestion {
-                            before_cond: cond.shrink_to_lo(),
-                            question,
-                            colon,
-                            end: expr.span.shrink_to_hi(),
-                        });
-                        return Err(self.dcx().create_err(TernaryOperator {
-                            span: self.prev_token.span.with_lo(lo),
-                            sugg,
-                            no_sugg: sugg.is_none(),
-                        }));
-                    }
-                    Err(err) => {
-                        err.cancel();
-                    }
-                };
-            }
+        } && self.eat_noexpect(&token::Colon)
+        {
+            let colon = self.prev_token.span;
+            match self.parse_expr() {
+                Ok(expr) => {
+                    let sugg = cond.map(|cond| TernaryOperatorSuggestion {
+                        before_cond: cond.shrink_to_lo(),
+                        question,
+                        colon,
+                        end: expr.span.shrink_to_hi(),
+                    });
+                    return Err(self.dcx().create_err(TernaryOperator {
+                        span: self.prev_token.span.with_lo(lo),
+                        sugg,
+                        no_sugg: sugg.is_none(),
+                    }));
+                }
+                Err(err) => {
+                    err.cancel();
+                }
+            };
         }
         self.restore_snapshot(snapshot);
         Ok(())
@@ -1840,10 +1839,10 @@ impl<'a> Parser<'a> {
         }
 
         // Do not add `::` to expected tokens.
-        if self.token == token::PathSep {
-            if let Some(ty) = base.to_ty() {
-                return self.maybe_recover_from_bad_qpath_stage_2(ty.span, ty);
-            }
+        if self.token == token::PathSep
+            && let Some(ty) = base.to_ty()
+        {
+            return self.maybe_recover_from_bad_qpath_stage_2(ty.span, ty);
         }
         Ok(base)
     }

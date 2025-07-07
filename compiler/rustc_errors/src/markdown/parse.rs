@@ -269,10 +269,10 @@ fn get_indented_section(buf: &[u8]) -> (&[u8], &[u8]) {
     let mut lines = buf.split(|&byte| byte == b'\n');
     let mut end = lines.next().map_or(0, |line| line.len());
     for line in lines {
-        if let Some(first) = line.first() {
-            if unordered_list_start(line) || !first.is_ascii_whitespace() {
-                break;
-            }
+        if let Some(first) = line.first()
+            && (unordered_list_start(line) || !first.is_ascii_whitespace())
+        {
+            break;
         }
         end += line.len() + 1;
     }
@@ -555,10 +555,10 @@ fn expand_plaintext<'a>(
 fn match_reflink<'a>(linkdefs: &[MdTree<'a>], disp: &'a str, match_id: Option<&str>) -> MdTree<'a> {
     let to_match = match_id.unwrap_or(disp); // Match with the display name if there isn't an id
     for def in linkdefs {
-        if let MdTree::LinkDef { id, link } = def {
-            if *id == to_match {
-                return MdTree::Link { disp, link };
-            }
+        if let MdTree::LinkDef { id, link } = def
+            && *id == to_match
+        {
+            return MdTree::Link { disp, link };
         }
     }
     MdTree::Link { disp, link: "" } // link not found

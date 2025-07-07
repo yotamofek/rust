@@ -894,7 +894,7 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
             start_abi,
             &[func_arg],
             Some(&ret_place),
-            ReturnContinuation::Stop { cleanup: true },
+            StackPopCleanup::Root { cleanup: true },
         )?;
 
         // Restore the old active thread frame.

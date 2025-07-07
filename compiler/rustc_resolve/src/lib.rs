@@ -1782,11 +1782,11 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
     ) -> Vec<TraitCandidate> {
         let mut found_traits = Vec::new();
 
-        if let Some(module) = current_trait {
-            if self.trait_may_have_item(Some(module), assoc_item) {
-                let def_id = module.def_id();
-                found_traits.push(TraitCandidate { def_id, import_ids: smallvec![] });
-            }
+        if let Some(module) = current_trait
+            && self.trait_may_have_item(Some(module), assoc_item)
+        {
+            let def_id = module.def_id();
+            found_traits.push(TraitCandidate { def_id, import_ids: smallvec![] });
         }
 
         self.visit_scopes(ScopeSet::All(TypeNS), parent_scope, ctxt, |this, scope, _, _| {
@@ -1963,12 +1963,12 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             }
             // Avoid marking `extern crate` items that refer to a name from extern prelude,
             // but not introduce it, as used if they are accessed from lexical scope.
-            if used == Used::Scope {
-                if let Some(entry) = self.extern_prelude.get(&ident.normalize_to_macros_2_0()) {
-                    if !entry.introduced_by_item && entry.binding == Some(used_binding) {
-                        return;
-                    }
-                }
+            if used == Used::Scope
+                && let Some(entry) = self.extern_prelude.get(&ident.normalize_to_macros_2_0())
+                && !entry.introduced_by_item
+                && entry.binding == Some(used_binding)
+            {
+                return;
             }
             let old_used = self.import_use_map.entry(import).or_insert(used);
             if *old_used < used {
@@ -2098,10 +2098,10 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
     }
 
     fn set_binding_parent_module(&mut self, binding: NameBinding<'ra>, module: Module<'ra>) {
-        if let Some(old_module) = self.binding_parent_modules.insert(binding, module) {
-            if module != old_module {
-                span_bug!(binding.span, "parent module is reset for binding");
-            }
+        if let Some(old_module) = self.binding_parent_modules.insert(binding, module)
+            && module != old_module
+        {
+            span_bug!(binding.span, "parent module is reset for binding");
         }
     }
 

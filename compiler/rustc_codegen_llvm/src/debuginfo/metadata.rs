@@ -159,15 +159,13 @@ fn build_pointer_or_reference_di_node<'ll, 'tcx>(
     return_if_di_node_created_in_meantime!(cx, unique_type_id);
 
     let data_layout = &cx.tcx.data_layout;
-    let pointer_size = data_layout.pointer_size();
-    let pointer_align = data_layout.pointer_align();
     let ptr_type_debuginfo_name = compute_debuginfo_type_name(cx.tcx, ptr_type, true);
 
     match wide_pointer_kind(cx, pointee_type) {
         None => {
             // This is a thin pointer. Create a regular pointer type and give it the correct name.
             assert_eq!(
-                (pointer_size, pointer_align.abi),
+                (data_layout.pointer_size, data_layout.pointer_align.abi),
                 cx.size_and_align_of(ptr_type),
                 "ptr_type={ptr_type}, pointee_type={pointee_type}",
             );
@@ -176,8 +174,8 @@ fn build_pointer_or_reference_di_node<'ll, 'tcx>(
                 llvm::LLVMRustDIBuilderCreatePointerType(
                     DIB(cx),
                     pointee_type_di_node,
-                    pointer_size.bits(),
-                    pointer_align.abi.bits() as u32,
+                    data_layout.pointer_size.bits(),
+                    data_layout.pointer_align.abi.bits() as u32,
                     0, // Ignore DWARF address space.
                     ptr_type_debuginfo_name.as_c_char_ptr(),
                     ptr_type_debuginfo_name.len(),
@@ -321,9 +319,7 @@ fn build_subroutine_type_di_node<'ll, 'tcx>(
     let name = compute_debuginfo_type_name(cx.tcx, fn_ty, false);
     let (size, align) = match fn_ty.kind() {
         ty::FnDef(..) => (Size::ZERO, Align::ONE),
-        ty::FnPtr(..) => {
-            (cx.tcx.data_layout.pointer_size(), cx.tcx.data_layout.pointer_align().abi)
-        }
+        ty::FnPtr(..) => (cx.tcx.data_layout.pointer_size, cx.tcx.data_layout.pointer_align.abi),
         _ => unreachable!(),
     };
     let di_node = unsafe {
@@ -508,7 +504,7 @@ fn recursion_marker_type_di_node<'ll, 'tcx>(cx: &CodegenCx<'ll, 'tcx>) -> &'ll D
         create_basic_type(
             cx,
             "<recur_type>",
-            cx.tcx.data_layout.pointer_size(),
+            cx.tcx.data_layout.pointer_size,
             dwarf_const::DW_ATE_unsigned,
         )
     })
@@ -1318,22 +1314,22 @@ fn build_generic_type_param_di_nodes<'ll, 'tcx>(
     cx: &CodegenCx<'ll, 'tcx>,
     ty: Ty<'tcx>,
 ) -> SmallVec<Option<&'ll DIType>> {
-    if let ty::Adt(def, args) = *ty.kind() {
-        if args.types().next().is_some() {
-            let generics = cx.tcx.generics_of(def.did());
-            let names = get_parameter_names(cx, generics);
-            let template_params: SmallVec<_> = iter::zip(args, names)
-                .filter_map(|(kind, name)| {
-                    kind.as_type().map(|ty| {
-                        let actual_type = cx.tcx.normalize_erasing_regions(cx.typing_env(), ty);
-                        let actual_type_di_node = type_di_node(cx, actual_type);
-                        Some(cx.create_template_type_parameter(name.as_str(), actual_type_di_node))
-                    })
+    if let ty::Adt(def, args) = *ty.kind()
+        && args.types().next().is_some()
+    {
+        let generics = cx.tcx.generics_of(def.did());
+        let names = get_parameter_names(cx, generics);
+        let template_params: SmallVec<_> = iter::zip(args, names)
+            .filter_map(|(kind, name)| {
+                kind.as_type().map(|ty| {
+                    let actual_type = cx.tcx.normalize_erasing_regions(cx.typing_env(), ty);
+                    let actual_type_di_node = type_di_node(cx, actual_type);
+                    Some(cx.create_template_type_parameter(name.as_str(), actual_type_di_node))
                 })
-                .collect();
+            })
+            .collect();
 
-            return template_params;
-        }
+        return template_params;
     }
 
     return smallvec![];
@@ -1520,10 +1516,10 @@ fn build_vtable_type_di_node<'ll, 'tcx>(
 fn find_vtable_behind_cast<'ll>(vtable: &'ll Value) -> &'ll Value {
     // The vtable is a global variable, which may be behind an addrspacecast.
     unsafe {
-        if let Some(c) = llvm::LLVMIsAConstantExpr(vtable) {
-            if llvm::LLVMGetConstOpcode(c) == llvm::Opcode::AddrSpaceCast {
-                return llvm::LLVMGetOperand(c, 0).unwrap();
-            }
+        if let Some(c) = llvm::LLVMIsAConstantExpr(vtable)
+            && llvm::LLVMGetConstOpcode(c) == llvm::Opcode::AddrSpaceCast
+        {
+            return llvm::LLVMGetOperand(c, 0).unwrap();
         }
     }
     vtable

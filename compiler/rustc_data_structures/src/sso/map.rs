@@ -177,10 +177,10 @@ impl<K: Eq + Hash, V> SsoHashMap<K, V> {
     /// Changes underlying storage from array to hashmap
     /// if array is full.
     fn migrate_if_full(&mut self) {
-        if let SsoHashMap::Array(array) = self {
-            if array.is_full() {
-                *self = SsoHashMap::Map(array.drain(..).collect());
-            }
+        if let SsoHashMap::Array(array) = self
+            && array.is_full()
+        {
+            *self = SsoHashMap::Map(array.drain(..).collect());
         }
     }
 

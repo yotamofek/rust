@@ -285,10 +285,8 @@ impl<'a> Parser<'a> {
     #[must_use]
     pub(super) fn eat_path_sep(&mut self) -> bool {
         let result = self.eat(exp!(PathSep));
-        if result && self.may_recover() {
-            if self.eat_noexpect(&token::Colon) {
-                self.dcx().emit_err(PathTripleColon { span: self.prev_token.span });
-            }
+        if result && self.may_recover() && self.eat_noexpect(&token::Colon) {
+            self.dcx().emit_err(PathTripleColon { span: self.prev_token.span });
         }
         result
     }

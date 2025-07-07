@@ -1579,11 +1579,11 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
                     );
                 }
             }
-            if let DefKind::Static { .. } = def_kind {
-                if !self.tcx.is_foreign_item(def_id) {
-                    let data = self.tcx.eval_static_initializer(def_id).unwrap();
-                    record!(self.tables.eval_static_initializer[def_id] <- data);
-                }
+            if let DefKind::Static { .. } = def_kind
+                && !self.tcx.is_foreign_item(def_id)
+            {
+                let data = self.tcx.eval_static_initializer(def_id).unwrap();
+                record!(self.tables.eval_static_initializer[def_id] <- data);
             }
             if let DefKind::Enum | DefKind::Struct | DefKind::Union = def_kind {
                 self.encode_info_for_adt(local_id);
@@ -1854,10 +1854,10 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
     fn encode_stability(&mut self, def_id: DefId) {
         // The query lookup can take a measurable amount of time in crates with many items. Check if
         // the stability attributes are even enabled before using their queries.
-        if self.feat.staged_api() || self.tcx.sess.opts.unstable_opts.force_unstable_if_unmarked {
-            if let Some(stab) = self.tcx.lookup_stability(def_id) {
-                record!(self.tables.lookup_stability[def_id] <- stab)
-            }
+        if (self.feat.staged_api() || self.tcx.sess.opts.unstable_opts.force_unstable_if_unmarked)
+            && let Some(stab) = self.tcx.lookup_stability(def_id)
+        {
+            record!(self.tables.lookup_stability[def_id] <- stab)
         }
     }
 
@@ -1865,10 +1865,10 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
     fn encode_const_stability(&mut self, def_id: DefId) {
         // The query lookup can take a measurable amount of time in crates with many items. Check if
         // the stability attributes are even enabled before using their queries.
-        if self.feat.staged_api() || self.tcx.sess.opts.unstable_opts.force_unstable_if_unmarked {
-            if let Some(stab) = self.tcx.lookup_const_stability(def_id) {
-                record!(self.tables.lookup_const_stability[def_id] <- stab)
-            }
+        if (self.feat.staged_api() || self.tcx.sess.opts.unstable_opts.force_unstable_if_unmarked)
+            && let Some(stab) = self.tcx.lookup_const_stability(def_id)
+        {
+            record!(self.tables.lookup_const_stability[def_id] <- stab)
         }
     }
 
@@ -1876,10 +1876,10 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
     fn encode_default_body_stability(&mut self, def_id: DefId) {
         // The query lookup can take a measurable amount of time in crates with many items. Check if
         // the stability attributes are even enabled before using their queries.
-        if self.feat.staged_api() || self.tcx.sess.opts.unstable_opts.force_unstable_if_unmarked {
-            if let Some(stab) = self.tcx.lookup_default_body_stability(def_id) {
-                record!(self.tables.lookup_default_body_stability[def_id] <- stab)
-            }
+        if (self.feat.staged_api() || self.tcx.sess.opts.unstable_opts.force_unstable_if_unmarked)
+            && let Some(stab) = self.tcx.lookup_default_body_stability(def_id)
+        {
+            record!(self.tables.lookup_default_body_stability[def_id] <- stab)
         }
     }
 
@@ -2152,10 +2152,10 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
                     .push((id.owner_id.def_id.local_def_index, simplified_self_ty));
 
                 let trait_def = tcx.trait_def(trait_ref.def_id);
-                if let Ok(mut an) = trait_def.ancestors(tcx, def_id) {
-                    if let Some(specialization_graph::Node::Impl(parent)) = an.nth(1) {
-                        self.tables.impl_parent.set_some(def_id.index, parent.into());
-                    }
+                if let Ok(mut an) = trait_def.ancestors(tcx, def_id)
+                    && let Some(specialization_graph::Node::Impl(parent)) = an.nth(1)
+                {
+                    self.tables.impl_parent.set_some(def_id.index, parent.into());
                 }
 
                 // if this is an impl of `CoerceUnsized`, create its

@@ -306,11 +306,11 @@ impl<R: ?Sized + Seek> BufReader<R> {
                 self.buf.unconsume((-offset) as usize);
                 return Ok(());
             }
-        } else if let Some(new_pos) = pos.checked_add(offset as u64) {
-            if new_pos <= self.buf.filled() as u64 {
-                self.buf.consume(offset as usize);
-                return Ok(());
-            }
+        } else if let Some(new_pos) = pos.checked_add(offset as u64)
+            && new_pos <= self.buf.filled() as u64
+        {
+            self.buf.consume(offset as usize);
+            return Ok(());
         }
 
         self.seek(SeekFrom::Current(offset)).map(drop)

@@ -759,13 +759,13 @@ impl<'tcx> interpret::Machine<'tcx> for CompileTimeMachine<'tcx> {
         }
         // If this is another static, make sure we fire off the query to detect cycles.
         // But only do that when checks for static recursion are enabled.
-        if machine.static_root_ids.is_some() {
-            if let Some(GlobalAlloc::Static(def_id)) = tcx.try_get_global_alloc(alloc_id) {
-                if tcx.is_foreign_item(def_id) {
-                    throw_unsup!(ExternStatic(def_id));
-                }
-                tcx.eval_static_initializer(def_id)?;
+        if machine.static_root_ids.is_some()
+            && let Some(GlobalAlloc::Static(def_id)) = tcx.try_get_global_alloc(alloc_id)
+        {
+            if tcx.is_foreign_item(def_id) {
+                throw_unsup!(ExternStatic(def_id));
             }
+            tcx.eval_static_initializer(def_id)?;
         }
         interp_ok(())
     }

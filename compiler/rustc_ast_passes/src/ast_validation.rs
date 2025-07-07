@@ -320,15 +320,11 @@ impl<'a> AstValidator<'a> {
     /// beginning or middle of parameter list.
     /// Example: `fn foo(..., x: i32)` will emit an error.
     fn check_decl_cvariadic_pos(&self, fn_decl: &FnDecl) {
-        match &*fn_decl.inputs {
-            [ps @ .., _] => {
-                for Param { ty, span, .. } in ps {
-                    if let TyKind::CVarArgs = ty.kind {
-                        self.dcx().emit_err(errors::FnParamCVarArgsNotLast { span: *span });
-                    }
-                }
-            }
-            _ => {}
+        if let [ps @ .., _] = &*fn_decl.inputs
+            && let Some(Param { span, .. }) =
+                ps.iter().find(|Param { ty, .. }| matches!(ty.kind, TyKind::CVarArgs))
+        {
+            self.dcx().emit_err(errors::FnParamCVarArgsNotLast { span: *span });
         }
     }
 
@@ -336,7 +332,7 @@ impl<'a> AstValidator<'a> {
         fn_decl
             .inputs
             .iter()
-            .flat_map(|i| i.attrs.as_ref())
+            .flat_map(|i| &i.attrs)
             .filter(|attr| {
                 let arr = [
                     sym::allow,
@@ -359,10 +355,11 @@ impl<'a> AstValidator<'a> {
     }
 
     fn check_decl_self_param(&self, fn_decl: &FnDecl, self_semantic: SelfSemantic) {
-        if let (SelfSemantic::No, [param, ..]) = (self_semantic, &*fn_decl.inputs) {
-            if param.is_self() {
-                self.dcx().emit_err(errors::FnParamForbiddenSelf { span: param.span });
-            }
+        if let SelfSemantic::No = self_semantic
+            && let [param, ..] = &*fn_decl.inputs
+            && param.is_self()
+        {
+            self.dcx().emit_err(errors::FnParamForbiddenSelf { span: param.span });
         }
     }
 
@@ -645,16 +642,16 @@ impl<'a> AstValidator<'a> {
             return;
         }
 
-        if let Some(header) = fk.header() {
-            if let Const::Yes(const_span) = header.constness {
-                let mut spans = variadic_spans.clone();
-                spans.push(const_span);
-                self.dcx().emit_err(errors::ConstAndCVariadic {
-                    spans,
-                    const_span,
-                    variadic_spans: variadic_spans.clone(),
-                });
-            }
+        if let Some(header) = fk.header()
+            && let Const::Yes(const_span) = header.constness
+        {
+            let mut spans = variadic_spans.clone();
+            spans.push(const_span);
+            self.dcx().emit_err(errors::ConstAndCVariadic {
+                spans,
+                const_span,
+                variadic_spans: variadic_spans.clone(),
+            });
         }
 
         match (fk.ctxt(), fk.header()) {
@@ -1763,16 +1760,13 @@ fn deny_equality_constraints(
             for bound in bounds {
                 if let GenericBound::Trait(poly) = bound
                     && poly.modifiers == TraitBoundModifiers::NONE
-                {
-                    if full_path.segments[..full_path.segments.len() - 1]
+                    && full_path.segments[..full_path.segments.len() - 1]
                         .iter()
                         .map(|segment| segment.ident.name)
-                        .zip(poly.trait_ref.path.segments.iter().map(|segment| segment.ident.name))
-                        .all(|(a, b)| a == b)
-                        && let Some(potential_assoc) = full_path.segments.iter().last()
-                    {
-                        suggest(poly, potential_assoc, predicate);
-                    }
+                        .eq(poly.trait_ref.path.segments.iter().map(|segment| segment.ident.name))
+                    && let Some(potential_assoc) = full_path.segments.iter().last()
+                {
+                    suggest(poly, potential_assoc, predicate);
                 }
             }
         }

@@ -47,10 +47,10 @@ impl<'a> ArchiveBuilder for LlvmArchiveBuilder<'a> {
         skip: Box<dyn FnMut(&str) -> bool + 'static>,
     ) -> io::Result<()> {
         let mut archive = archive.to_path_buf();
-        if self.sess.target.llvm_target.contains("-apple-macosx") {
-            if let Some(new_archive) = try_extract_macho_fat_archive(self.sess, &archive)? {
-                archive = new_archive
-            }
+        if self.sess.target.llvm_target.contains("-apple-macosx")
+            && let Some(new_archive) = try_extract_macho_fat_archive(self.sess, &archive)?
+        {
+            archive = new_archive
         }
         let archive_ro = match ArchiveRO::open(&archive) {
             Ok(ar) => ar,

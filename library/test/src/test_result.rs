@@ -94,10 +94,11 @@ pub(crate) fn calc_result(
     }
 
     // Check if test is failed due to timeout.
-    if let (Some(opts), Some(time)) = (time_opts, exec_time) {
-        if opts.error_on_excess && opts.is_critical(desc, time) {
-            return TestResult::TrTimedFail;
-        }
+    if let (Some(opts), Some(time)) = (time_opts, exec_time)
+        && opts.error_on_excess
+        && opts.is_critical(desc, time)
+    {
+        return TestResult::TrTimedFail;
     }
 
     result
@@ -139,10 +140,11 @@ pub(crate) fn get_result_from_exit_code(
     }
 
     // Check if test is failed due to timeout.
-    if let (Some(opts), Some(time)) = (time_opts, exec_time) {
-        if opts.error_on_excess && opts.is_critical(desc, time) {
-            return TestResult::TrTimedFail;
-        }
+    if let (Some(opts), Some(time)) = (time_opts, exec_time)
+        && opts.error_on_excess
+        && opts.is_critical(desc, time)
+    {
+        return TestResult::TrTimedFail;
     }
 
     result

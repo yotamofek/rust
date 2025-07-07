@@ -1151,23 +1151,18 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
                     //
                     // FIXME: Should we be handling `(PATH_TO_CONST)`?
                     TyKind::Path(None, path) => {
-                        if let Some(res) = self
-                            .resolver
-                            .get_partial_res(ty.id)
-                            .and_then(|partial_res| partial_res.full_res())
+                        if let Some(partial_res) = self.resolver.get_partial_res(ty.id)
+                            && let Some(res) = partial_res.full_res()
+                            && !res.matches_ns(Namespace::TypeNS)
+                            && path.is_potential_trivial_const_arg(false)
                         {
-                            if !res.matches_ns(Namespace::TypeNS)
-                                && path.is_potential_trivial_const_arg(false)
-                            {
-                                debug!(
-                                    "lower_generic_arg: Lowering type argument as const argument: {:?}",
-                                    ty,
-                                );
+                            debug!(
+                                "lower_generic_arg: Lowering type argument as const argument: {:?}",
+                                ty,
+                            );
 
-                                let ct =
-                                    self.lower_const_path_to_const_arg(path, res, ty.id, ty.span);
-                                return GenericArg::Const(ct.try_as_ambig_ct().unwrap());
-                            }
+                            let ct = self.lower_const_path_to_const_arg(path, res, ty.id, ty.span);
+                            return GenericArg::Const(ct.try_as_ambig_ct().unwrap());
                         }
                     }
                     _ => {}

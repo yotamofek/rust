@@ -23,10 +23,10 @@ impl<'tcx> MutVisitor<'tcx> for FixReturnPendingVisitor<'tcx> {
         }
 
         // Converting `_0 = Poll::<Rv>::Pending` to `_0 = Poll::<()>::Pending`
-        if let Rvalue::Aggregate(kind, _) = rvalue {
-            if let AggregateKind::Adt(_, _, ref mut args, _, _) = **kind {
-                *args = self.tcx.mk_args(&[self.tcx.types.unit.into()]);
-            }
+        if let Rvalue::Aggregate(kind, _) = rvalue
+            && let AggregateKind::Adt(_, _, ref mut args, _, _) = **kind
+        {
+            *args = self.tcx.mk_args(&[self.tcx.types.unit.into()]);
         }
     }
 }
@@ -212,11 +212,10 @@ pub(super) fn cleanup_async_drops<'tcx>(body: &mut Body<'tcx>) {
             ref mut drop,
             ref mut async_fut,
         } = block.terminator_mut().kind
+            && (drop.is_some() || async_fut.is_some())
         {
-            if drop.is_some() || async_fut.is_some() {
-                *drop = None;
-                *async_fut = None;
-            }
+            *drop = None;
+            *async_fut = None;
         }
     }
 }

@@ -277,10 +277,10 @@ pub fn dec2flt<F: RawFloat>(s: &str) -> Result<F, ParseFloatError> {
         None => return Err(pfe_invalid()),
     };
     num.negative = negative;
-    if !cfg!(feature = "optimize_for_size") {
-        if let Some(value) = num.try_fast_path::<F>() {
-            return Ok(value);
-        }
+    if !cfg!(feature = "optimize_for_size")
+        && let Some(value) = num.try_fast_path::<F>()
+    {
+        return Ok(value);
     }
 
     // If significant digits were truncated, then we can have rounding error

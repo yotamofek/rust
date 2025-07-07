@@ -1067,7 +1067,7 @@ where
                 if let Some(variant) = data_variant {
                     // FIXME(erikdesjardins): handle non-default addrspace ptr sizes
                     // (requires passing in the expected address space from the caller)
-                    let ptr_end = offset + Primitive::Pointer(AddressSpace::ZERO).size(cx);
+                    let ptr_end = offset + Primitive::Pointer(AddressSpace::DATA).size(cx);
                     for i in 0..variant.fields.count() {
                         let field_start = variant.fields.offset(i);
                         if field_start <= offset {
@@ -1092,17 +1092,16 @@ where
                 // Fixup info for the first field of a `Box`. Recursive traversal will have found
                 // the raw pointer, so size and align are set to the boxed type, but `pointee.safe`
                 // will still be `None`.
-                if let Some(ref mut pointee) = result {
-                    if offset.bytes() == 0
-                        && let Some(boxed_ty) = this.ty.boxed_ty()
-                    {
-                        debug_assert!(pointee.safe.is_none());
-                        let optimize = tcx.sess.opts.optimize != OptLevel::No;
-                        pointee.safe = Some(PointerKind::Box {
-                            unpin: optimize && boxed_ty.is_unpin(tcx, typing_env),
-                            global: this.ty.is_box_global(tcx),
-                        });
-                    }
+                if let Some(ref mut pointee) = result
+                    && offset.bytes() == 0
+                    && let Some(boxed_ty) = this.ty.boxed_ty()
+                {
+                    debug_assert!(pointee.safe.is_none());
+                    let optimize = tcx.sess.opts.optimize != OptLevel::No;
+                    pointee.safe = Some(PointerKind::Box {
+                        unpin: optimize && boxed_ty.is_unpin(tcx, typing_env),
+                        global: this.ty.is_box_global(tcx),
+                    });
                 }
 
                 result

@@ -695,12 +695,12 @@ impl<A: Step> RangeIteratorImpl for ops::Range<A> {
 
     #[inline]
     default fn spec_nth(&mut self, n: usize) -> Option<A> {
-        if let Some(plus_n) = Step::forward_checked(self.start.clone(), n) {
-            if plus_n < self.end {
-                self.start =
-                    Step::forward_checked(plus_n.clone(), 1).expect("`Step` invariants not upheld");
-                return Some(plus_n);
-            }
+        if let Some(plus_n) = Step::forward_checked(self.start.clone(), n)
+            && plus_n < self.end
+        {
+            self.start =
+                Step::forward_checked(plus_n.clone(), 1).expect("`Step` invariants not upheld");
+            return Some(plus_n);
         }
 
         self.start = self.end.clone();
@@ -733,12 +733,11 @@ impl<A: Step> RangeIteratorImpl for ops::Range<A> {
 
     #[inline]
     default fn spec_nth_back(&mut self, n: usize) -> Option<A> {
-        if let Some(minus_n) = Step::backward_checked(self.end.clone(), n) {
-            if minus_n > self.start {
-                self.end =
-                    Step::backward_checked(minus_n, 1).expect("`Step` invariants not upheld");
-                return Some(self.end.clone());
-            }
+        if let Some(minus_n) = Step::backward_checked(self.end.clone(), n)
+            && minus_n > self.start
+        {
+            self.end = Step::backward_checked(minus_n, 1).expect("`Step` invariants not upheld");
+            return Some(self.end.clone());
         }
 
         self.end = self.start.clone();
@@ -774,12 +773,12 @@ impl<T: TrustedStep> RangeIteratorImpl for ops::Range<T> {
 
     #[inline]
     fn spec_nth(&mut self, n: usize) -> Option<T> {
-        if let Some(plus_n) = Step::forward_checked(self.start, n) {
-            if plus_n < self.end {
-                // SAFETY: just checked precondition
-                self.start = unsafe { Step::forward_unchecked(plus_n, 1) };
-                return Some(plus_n);
-            }
+        if let Some(plus_n) = Step::forward_checked(self.start, n)
+            && plus_n < self.end
+        {
+            // SAFETY: just checked precondition
+            self.start = unsafe { Step::forward_unchecked(plus_n, 1) };
+            return Some(plus_n);
         }
 
         self.start = self.end;
@@ -815,12 +814,12 @@ impl<T: TrustedStep> RangeIteratorImpl for ops::Range<T> {
 
     #[inline]
     fn spec_nth_back(&mut self, n: usize) -> Option<T> {
-        if let Some(minus_n) = Step::backward_checked(self.end, n) {
-            if minus_n > self.start {
-                // SAFETY: just checked precondition
-                self.end = unsafe { Step::backward_unchecked(minus_n, 1) };
-                return Some(self.end);
-            }
+        if let Some(minus_n) = Step::backward_checked(self.end, n)
+            && minus_n > self.start
+        {
+            // SAFETY: just checked precondition
+            self.end = unsafe { Step::backward_unchecked(minus_n, 1) };
+            return Some(self.end);
         }
 
         self.end = self.start;

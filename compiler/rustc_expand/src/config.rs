@@ -110,11 +110,11 @@ pub fn features(sess: &Session, krate_attrs: &[Attribute], crate_name: Symbol) -
             // If `-Z allow-features` is used and the enabled feature is
             // unstable and not also listed as one of the allowed features,
             // issue an error.
-            if let Some(allowed) = sess.opts.unstable_opts.allow_features.as_ref() {
-                if allowed.iter().all(|f| name.as_str() != f) {
-                    sess.dcx().emit_err(FeatureNotAllowed { span: mi.span(), name });
-                    continue;
-                }
+            if let Some(allowed) = sess.opts.unstable_opts.allow_features.as_ref()
+                && allowed.iter().all(|f| name.as_str() != f)
+            {
+                sess.dcx().emit_err(FeatureNotAllowed { span: mi.span(), name });
+                continue;
             }
 
             // If the enabled feature is unstable, record it.
@@ -198,11 +198,11 @@ impl<'a> StripUnconfigured<'a> {
     }
 
     fn try_configure_tokens<T: HasTokens>(&self, node: &mut T) {
-        if self.config_tokens {
-            if let Some(Some(tokens)) = node.tokens_mut() {
-                let attr_stream = tokens.to_attr_token_stream();
-                *tokens = LazyAttrTokenStream::new_direct(self.configure_tokens(&attr_stream));
-            }
+        if self.config_tokens
+            && let Some(Some(tokens)) = node.tokens_mut()
+        {
+            let attr_stream = tokens.to_attr_token_stream();
+            *tokens = LazyAttrTokenStream::new_direct(self.configure_tokens(&attr_stream));
         }
     }
 

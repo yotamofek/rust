@@ -264,8 +264,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
 
         if let Some(suggested_name) =
             find_best_match_for_name(&wider_candidate_names, assoc_ident.name, None)
-        {
-            if let [best_trait] = visible_traits
+            && let [best_trait] = visible_traits
                 .iter()
                 .copied()
                 .filter(|trait_def_id| {
@@ -274,16 +273,16 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                         .any(|item| item.as_tag() == assoc_tag)
                 })
                 .collect::<Vec<_>>()[..]
-            {
-                let trait_name = tcx.def_path_str(best_trait);
-                err.label = Some(errors::AssocItemNotFoundLabel::FoundInOtherTrait {
-                    span: assoc_ident.span,
-                    assoc_kind: assoc_kind_str,
-                    trait_name: &trait_name,
-                    suggested_name,
-                    identically_named: suggested_name == assoc_ident.name,
-                });
-                if let AssocItemQSelf::TyParam(ty_param_def_id, ty_param_span) = qself
+        {
+            let trait_name = tcx.def_path_str(best_trait);
+            err.label = Some(errors::AssocItemNotFoundLabel::FoundInOtherTrait {
+                span: assoc_ident.span,
+                assoc_kind: assoc_kind_str,
+                trait_name: &trait_name,
+                suggested_name,
+                identically_named: suggested_name == assoc_ident.name,
+            });
+            if let AssocItemQSelf::TyParam(ty_param_def_id, ty_param_span) = qself
                     // Not using `self.item_def_id()` here as that would yield the opaque type itself if we're
                     // inside an opaque type while we're interested in the overarching type alias (TAIT).
                     // FIXME: However, for trait aliases, this incorrectly returns the enclosing module...
@@ -291,83 +290,82 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                         tcx.hir_get_parent_item(tcx.local_def_id_to_hir_id(ty_param_def_id))
                     // FIXME: ...which obviously won't have any generics.
                     && let Some(generics) = tcx.hir_get_generics(item_def_id.def_id)
+            {
+                // FIXME: Suggest adding supertrait bounds if we have a `Self` type param.
+                // FIXME(trait_alias): Suggest adding `Self: Trait` to
+                // `trait Alias = where Self::Proj:;` with `trait Trait { type Proj; }`.
+                if generics
+                    .bounds_for_param(ty_param_def_id)
+                    .flat_map(|pred| pred.bounds.iter())
+                    .any(|b| match b {
+                        hir::GenericBound::Trait(t, ..) => {
+                            t.trait_ref.trait_def_id() == Some(best_trait)
+                        }
+                        _ => false,
+                    })
                 {
-                    // FIXME: Suggest adding supertrait bounds if we have a `Self` type param.
-                    // FIXME(trait_alias): Suggest adding `Self: Trait` to
-                    // `trait Alias = where Self::Proj:;` with `trait Trait { type Proj; }`.
-                    if generics
-                        .bounds_for_param(ty_param_def_id)
-                        .flat_map(|pred| pred.bounds.iter())
-                        .any(|b| match b {
-                            hir::GenericBound::Trait(t, ..) => {
-                                t.trait_ref.trait_def_id() == Some(best_trait)
-                            }
-                            _ => false,
-                        })
+                    // The type param already has a bound for `trait_name`, we just need to
+                    // change the associated item.
+                    err.sugg = Some(errors::AssocItemNotFoundSugg::SimilarInOtherTrait {
+                        span: assoc_ident.span,
+                        trait_name: &trait_name,
+                        assoc_kind: assoc_kind_str,
+                        suggested_name,
+                    });
+                    return self.dcx().emit_err(err);
+                }
+
+                let trait_args = &ty::GenericArgs::identity_for_item(tcx, best_trait)[1..];
+                let mut trait_ref = trait_name.clone();
+                let applicability = if let [arg, args @ ..] = trait_args {
+                    use std::fmt::Write;
+                    write!(trait_ref, "</* {arg}").unwrap();
+                    args.iter().try_for_each(|arg| write!(trait_ref, ", {arg}")).unwrap();
+                    trait_ref += " */>";
+                    Applicability::HasPlaceholders
+                } else {
+                    Applicability::MaybeIncorrect
+                };
+
+                let identically_named = suggested_name == assoc_ident.name;
+
+                if let DefKind::TyAlias = tcx.def_kind(item_def_id)
+                    && !tcx.type_alias_is_lazy(item_def_id)
+                {
+                    err.sugg = Some(errors::AssocItemNotFoundSugg::SimilarInOtherTraitQPath {
+                        lo: ty_param_span.shrink_to_lo(),
+                        mi: ty_param_span.shrink_to_hi(),
+                        hi: (!identically_named).then_some(assoc_ident.span),
+                        trait_ref,
+                        identically_named,
+                        suggested_name,
+                        applicability,
+                    });
+                } else {
+                    let mut err = self.dcx().create_err(err);
+                    if suggest_constraining_type_param(
+                        tcx,
+                        generics,
+                        &mut err,
+                        &qself_str,
+                        &trait_ref,
+                        Some(best_trait),
+                        None,
+                    ) && !identically_named
                     {
-                        // The type param already has a bound for `trait_name`, we just need to
-                        // change the associated item.
-                        err.sugg = Some(errors::AssocItemNotFoundSugg::SimilarInOtherTrait {
-                            span: assoc_ident.span,
-                            trait_name: &trait_name,
-                            assoc_kind: assoc_kind_str,
-                            suggested_name,
-                        });
-                        return self.dcx().emit_err(err);
-                    }
-
-                    let trait_args = &ty::GenericArgs::identity_for_item(tcx, best_trait)[1..];
-                    let mut trait_ref = trait_name.clone();
-                    let applicability = if let [arg, args @ ..] = trait_args {
-                        use std::fmt::Write;
-                        write!(trait_ref, "</* {arg}").unwrap();
-                        args.iter().try_for_each(|arg| write!(trait_ref, ", {arg}")).unwrap();
-                        trait_ref += " */>";
-                        Applicability::HasPlaceholders
-                    } else {
-                        Applicability::MaybeIncorrect
-                    };
-
-                    let identically_named = suggested_name == assoc_ident.name;
-
-                    if let DefKind::TyAlias = tcx.def_kind(item_def_id)
-                        && !tcx.type_alias_is_lazy(item_def_id)
-                    {
-                        err.sugg = Some(errors::AssocItemNotFoundSugg::SimilarInOtherTraitQPath {
-                            lo: ty_param_span.shrink_to_lo(),
-                            mi: ty_param_span.shrink_to_hi(),
-                            hi: (!identically_named).then_some(assoc_ident.span),
-                            trait_ref,
-                            identically_named,
-                            suggested_name,
-                            applicability,
-                        });
-                    } else {
-                        let mut err = self.dcx().create_err(err);
-                        if suggest_constraining_type_param(
-                            tcx,
-                            generics,
-                            &mut err,
-                            &qself_str,
-                            &trait_ref,
-                            Some(best_trait),
-                            None,
-                        ) && !identically_named
-                        {
-                            // We suggested constraining a type parameter, but the associated item on it
-                            // was also not an exact match, so we also suggest changing it.
-                            err.span_suggestion_verbose(
+                        // We suggested constraining a type parameter, but the associated item on it
+                        // was also not an exact match, so we also suggest changing it.
+                        err.span_suggestion_verbose(
                                 assoc_ident.span,
                                 fluent::hir_analysis_assoc_item_not_found_similar_in_other_trait_with_bound_sugg,
                                 suggested_name,
                                 Applicability::MaybeIncorrect,
                             );
-                        }
-                        return err.emit();
                     }
+                    return err.emit();
                 }
-                return self.dcx().emit_err(err);
             }
+            return self.dcx().emit_err(err);
         }
 
         // If we still couldn't find any associated item, and only one associated item exists,

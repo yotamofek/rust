@@ -554,10 +554,10 @@ impl<'a> Iterator for Messages<'a> {
             // Most operating systems, but not Linux or emscripten, return the previous pointer
             // when its length is zero. Therefore, check if the previous pointer is the same as
             // the current one.
-            if let Some(current) = self.current {
-                if eq(current, cmsg) {
-                    return None;
-                }
+            if let Some(current) = self.current
+                && eq(current, cmsg)
+            {
+                return None;
             }
 
             self.current = Some(cmsg);

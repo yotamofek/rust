@@ -225,10 +225,10 @@ impl<'tcx> RegionHighlightMode<'tcx> {
         region: Option<ty::Region<'tcx>>,
         number: Option<usize>,
     ) {
-        if let Some(k) = region {
-            if let Some(n) = number {
-                self.highlighting_region(k, n);
-            }
+        if let Some(k) = region
+            && let Some(n) = number
+        {
+            self.highlighting_region(k, n);
         }
     }
 
@@ -845,13 +845,12 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
                         // `type_of` on a type alias or assoc type should never cause a cycle.
                         if let ty::Alias(ty::Opaque, ty::AliasTy { def_id: d, .. }) =
                             *self.tcx().type_of(parent).instantiate_identity().kind()
+                            && d == def_id
                         {
-                            if d == def_id {
-                                // If the type alias directly starts with the `impl` of the
-                                // opaque type we're printing, then skip the `::{opaque#1}`.
-                                p!(print_def_path(parent, args));
-                                return Ok(());
-                            }
+                            // If the type alias directly starts with the `impl` of the
+                            // opaque type we're printing, then skip the `::{opaque#1}`.
+                            p!(print_def_path(parent, args));
+                            return Ok(());
                         }
                         // Complex opaque type, e.g. `type Foo = (i32, impl Debug);`
                         p!(print_def_path(def_id, args));
@@ -1154,10 +1153,10 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
                         }
 
                         p!(")");
-                        if let Some(ty) = return_ty.skip_binder().as_type() {
-                            if !ty.is_unit() {
-                                p!(" -> ", print(return_ty));
-                            }
+                        if let Some(ty) = return_ty.skip_binder().as_type()
+                            && !ty.is_unit()
+                        {
+                            p!(" -> ", print(return_ty));
                         }
                         p!(write("{}", if paren_needed { ")" } else { "" }));
 
@@ -1424,17 +1423,18 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
 
                 // Special-case `Fn(...) -> ...` and re-sugar it.
                 let fn_trait_kind = cx.tcx().fn_trait_kind_from_def_id(principal.def_id);
-                if !cx.should_print_verbose() && fn_trait_kind.is_some() {
-                    if let ty::Tuple(tys) = principal.args.type_at(0).kind() {
-                        let mut projections = predicates.projection_bounds();
-                        if let (Some(proj), None) = (projections.next(), projections.next()) {
-                            p!(pretty_fn_sig(
-                                tys,
-                                false,
-                                proj.skip_binder().term.as_type().expect("Return type was a const")
-                            ));
-                            resugared = true;
-                        }
+                if !cx.should_print_verbose()
+                    && fn_trait_kind.is_some()
+                    && let ty::Tuple(tys) = principal.args.type_at(0).kind()
+                {
+                    let mut projections = predicates.projection_bounds();
+                    if let (Some(proj), None) = (projections.next(), projections.next()) {
+                        p!(pretty_fn_sig(
+                            tys,
+                            false,
+                            proj.skip_binder().term.as_type().expect("Return type was a const")
+                        ));
+                        resugared = true;
                     }
                 }
 
@@ -1842,7 +1842,7 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
             }
             // Pointer types
             ty::Ref(..) | ty::RawPtr(_, _) | ty::FnPtr(..) => {
-                let data = int.to_bits(self.tcx().data_layout.pointer_size());
+                let data = int.to_bits(self.tcx().data_layout.pointer_size);
                 self.typed_value(
                     |this| {
                         write!(this, "0x{data:x}")?;
@@ -2422,10 +2422,10 @@ impl<'tcx> Printer<'tcx> for FmtPrinter<'_, 'tcx> {
             write!(self, "::")?;
         }
 
-        if let DefPathDataName::Named(name) = name {
-            if Ident::with_dummy_span(name).is_raw_guess() {
-                write!(self, "r#")?;
-            }
+        if let DefPathDataName::Named(name) = name
+            && Ident::with_dummy_span(name).is_raw_guess()
+        {
+            write!(self, "r#")?;
         }
 
         let verbose = self.should_print_verbose();
@@ -2556,10 +2556,10 @@ impl<'tcx> PrettyPrinter<'tcx> for FmtPrinter<'_, 'tcx> {
                     return true;
                 }
 
-                if let Some((region, _)) = highlight.highlight_bound_region {
-                    if br == region {
-                        return true;
-                    }
+                if let Some((region, _)) = highlight.highlight_bound_region
+                    && br == region
+                {
+                    return true;
                 }
 
                 false
@@ -2634,11 +2634,11 @@ impl<'tcx> FmtPrinter<'_, 'tcx> {
                     return Ok(());
                 }
 
-                if let Some((region, counter)) = highlight.highlight_bound_region {
-                    if br == region {
-                        p!(write("'{}", counter));
-                        return Ok(());
-                    }
+                if let Some((region, counter)) = highlight.highlight_bound_region
+                    && br == region
+                {
+                    p!(write("'{}", counter));
+                    return Ok(());
                 }
             }
             ty::ReVar(region_vid) if identify_regions => {
@@ -2843,14 +2843,14 @@ impl<'tcx> FmtPrinter<'_, 'tcx> {
                     (name, ty::BoundRegionKind::NamedAnon(name))
                 };
 
-                if let Some(lt_idx) = lifetime_idx {
-                    if lt_idx > binder_level_idx {
-                        return ty::Region::new_bound(
-                            tcx,
-                            ty::INNERMOST,
-                            ty::BoundRegion { var: br.var, kind },
-                        );
-                    }
+                if let Some(lt_idx) = lifetime_idx
+                    && lt_idx > binder_level_idx
+                {
+                    return ty::Region::new_bound(
+                        tcx,
+                        ty::INNERMOST,
+                        ty::BoundRegion { var: br.var, kind },
+                    );
                 }
 
                 // Unconditionally render `unsafe<>`.

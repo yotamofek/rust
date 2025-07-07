@@ -720,10 +720,10 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
                     ty::PredicateKind::Clause(ty::ClauseKind::Trait(pred))
                 })),
             );
-            if let Ok(r) = self.evaluate_root_obligation(&obligation) {
-                if !r.may_apply() {
-                    return true;
-                }
+            if let Ok(r) = self.evaluate_root_obligation(&obligation)
+                && !r.may_apply()
+            {
+                return true;
             }
         }
         false

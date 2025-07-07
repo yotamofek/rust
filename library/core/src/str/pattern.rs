@@ -458,10 +458,10 @@ unsafe impl<'a> Searcher<'a> for CharSearcher<'a> {
                 self.finger += index + 1;
                 if self.finger >= self.utf8_size() {
                     let found_char = self.finger - self.utf8_size();
-                    if let Some(slice) = self.haystack.as_bytes().get(found_char..self.finger) {
-                        if slice == &self.utf8_encoded[0..self.utf8_size()] {
-                            return Some((found_char, self.finger));
-                        }
+                    if let Some(slice) = self.haystack.as_bytes().get(found_char..self.finger)
+                        && slice == &self.utf8_encoded[0..self.utf8_size()]
+                    {
+                        return Some((found_char, self.finger));
                     }
                 }
             } else {
@@ -518,12 +518,12 @@ unsafe impl<'a> ReverseSearcher<'a> for CharSearcher<'a> {
                 let shift = self.utf8_size() - 1;
                 if index >= shift {
                     let found_char = index - shift;
-                    if let Some(slice) = haystack.get(found_char..(found_char + self.utf8_size())) {
-                        if slice == &self.utf8_encoded[0..self.utf8_size()] {
-                            // move finger to before the character found (i.e., at its start index)
-                            self.finger_back = found_char;
-                            return Some((self.finger_back, self.finger_back + self.utf8_size()));
-                        }
+                    if let Some(slice) = haystack.get(found_char..(found_char + self.utf8_size()))
+                        && slice == &self.utf8_encoded[0..self.utf8_size()]
+                    {
+                        // move finger to before the character found (i.e., at its start index)
+                        self.finger_back = found_char;
+                        return Some((self.finger_back, self.finger_back + self.utf8_size()));
                     }
                 }
                 // We can't use finger_back = index - size + 1 here. If we found the last char
@@ -997,10 +997,10 @@ impl<'b> Pattern for &'b str {
                 }
 
                 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-                if self.len() <= 32 {
-                    if let Some(result) = simd_contains(self, haystack) {
-                        return result;
-                    }
+                if self.len() <= 32
+                    && let Some(result) = simd_contains(self, haystack)
+                {
+                    return result;
                 }
 
                 self.into_searcher(haystack).next_match().is_some()

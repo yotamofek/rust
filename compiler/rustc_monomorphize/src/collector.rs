@@ -1481,12 +1481,11 @@ impl<'v> RootCollector<'_, 'v> {
 
                 // If we're collecting items eagerly, then recurse into all constants.
                 // Otherwise the value is only collected when explicitly mentioned in other items.
-                if self.strategy == MonoItemCollectionStrategy::Eager {
-                    if !self.tcx.generics_of(id.owner_id).own_requires_monomorphization()
-                        && let Ok(val) = self.tcx.const_eval_poly(id.owner_id.to_def_id())
-                    {
-                        collect_const_value(self.tcx, val, self.output);
-                    }
+                if self.strategy == MonoItemCollectionStrategy::Eager
+                    && !self.tcx.generics_of(id.owner_id).own_requires_monomorphization()
+                    && let Ok(val) = self.tcx.const_eval_poly(id.owner_id.to_def_id())
+                {
+                    collect_const_value(self.tcx, val, self.output);
                 }
             }
             DefKind::Impl { .. } => {

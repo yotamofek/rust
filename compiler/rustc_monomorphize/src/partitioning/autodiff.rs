@@ -20,55 +20,51 @@ fn adjust_activity_to_abi<'tcx>(tcx: TyCtxt<'tcx>, fn_ty: Ty<'tcx>, da: &mut Vec
     let mut new_activities = vec![];
     let mut new_positions = vec![];
     for (i, ty) in sig.inputs().iter().enumerate() {
-        if let Some(inner_ty) = ty.builtin_deref(true) {
-            if inner_ty.is_slice() {
-                // Now we need to figure out the size of each slice element in memory to allow
-                // safety checks and usability improvements in the backend.
-                let sty = match inner_ty.builtin_index() {
-                    Some(sty) => sty,
-                    None => {
-                        panic!("slice element type unknown");
-                    }
-                };
-                let pci = PseudoCanonicalInput {
-                    typing_env: TypingEnv::fully_monomorphized(),
-                    value: sty,
-                };
-
-                let layout = tcx.layout_of(pci);
-                let elem_size = match layout {
-                    Ok(layout) => layout.size,
-                    Err(_) => {
-                        bug!("autodiff failed to compute slice element size");
-                    }
-                };
-                let elem_size: u32 = elem_size.bytes() as u32;
-
-                // We know that the length will be passed as extra arg.
-                if !da.is_empty() {
-                    // We are looking at a slice. The length of that slice will become an
-                    // extra integer on llvm level. Integers are always const.
-                    // However, if the slice get's duplicated, we want to know to later check the
-                    // size. So we mark the new size argument as FakeActivitySize.
-                    // There is one FakeActivitySize per slice, so for convenience we store the
-                    // slice element size in bytes in it. We will use the size in the backend.
-                    let activity = match da[i] {
-                        DiffActivity::DualOnly
-                        | DiffActivity::Dual
-                        | DiffActivity::Dualv
-                        | DiffActivity::DuplicatedOnly
-                        | DiffActivity::Duplicated => {
-                            DiffActivity::FakeActivitySize(Some(elem_size))
-                        }
-                        DiffActivity::Const => DiffActivity::Const,
-                        _ => bug!("unexpected activity for ptr/ref"),
-                    };
-                    new_activities.push(activity);
-                    new_positions.push(i + 1);
+        if let Some(inner_ty) = ty.builtin_deref(true)
+            && inner_ty.is_slice()
+        {
+            // Now we need to figure out the size of each slice element in memory to allow
+            // safety checks and usability improvements in the backend.
+            let sty = match inner_ty.builtin_index() {
+                Some(sty) => sty,
+                None => {
+                    panic!("slice element type unknown");
                 }
+            };
+            let pci =
+                PseudoCanonicalInput { typing_env: TypingEnv::fully_monomorphized(), value: sty };
 
-                continue;
+            let layout = tcx.layout_of(pci);
+            let elem_size = match layout {
+                Ok(layout) => layout.size,
+                Err(_) => {
+                    bug!("autodiff failed to compute slice element size");
+                }
+            };
+            let elem_size: u32 = elem_size.bytes() as u32;
+
+            // We know that the length will be passed as extra arg.
+            if !da.is_empty() {
+                // We are looking at a slice. The length of that slice will become an
+                // extra integer on llvm level. Integers are always const.
+                // However, if the slice get's duplicated, we want to know to later check the
+                // size. So we mark the new size argument as FakeActivitySize.
+                // There is one FakeActivitySize per slice, so for convenience we store the
+                // slice element size in bytes in it. We will use the size in the backend.
+                let activity = match da[i] {
+                    DiffActivity::DualOnly
+                    | DiffActivity::Dual
+                    | DiffActivity::Dualv
+                    | DiffActivity::DuplicatedOnly
+                    | DiffActivity::Duplicated => DiffActivity::FakeActivitySize(Some(elem_size)),
+                    DiffActivity::Const => DiffActivity::Const,
+                    _ => bug!("unexpected activity for ptr/ref"),
+                };
+                new_activities.push(activity);
+                new_positions.push(i + 1);
             }
+
+            continue;
         }
     }
     // now add the extra activities coming from slices

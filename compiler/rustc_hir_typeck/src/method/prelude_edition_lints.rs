@@ -258,16 +258,16 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // For from_iter, check if the type actually implements FromIterator.
         // If we know it does not, we don't need to warn.
-        if method_name.name == sym::from_iter {
-            if let Some(trait_def_id) = self.tcx.get_diagnostic_item(sym::FromIterator) {
-                let any_type = self.infcx.next_ty_var(span);
-                if !self
-                    .infcx
-                    .type_implements_trait(trait_def_id, [self_ty, any_type], self.param_env)
-                    .may_apply()
-                {
-                    return;
-                }
+        if method_name.name == sym::from_iter
+            && let Some(trait_def_id) = self.tcx.get_diagnostic_item(sym::FromIterator)
+        {
+            let any_type = self.infcx.next_ty_var(span);
+            if !self
+                .infcx
+                .type_implements_trait(trait_def_id, [self_ty, any_type], self.param_env)
+                .may_apply()
+            {
+                return;
             }
         }
 
@@ -315,20 +315,20 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             // Get the number of generics the self type has (if an Adt) unless we can determine that
             // the user has written the self type with generics already which we (naively) do by looking
             // for a "<" in `self_ty_name`.
-            if !self_ty_name.contains('<') {
-                if let ty::Adt(def, _) = self_ty.kind() {
-                    let generics = self.tcx.generics_of(def.did());
-                    if !generics.is_own_empty() {
-                        let counts = generics.own_counts();
-                        self_ty_name += &format!(
-                            "<{}>",
-                            std::iter::repeat("'_")
-                                .take(counts.lifetimes)
-                                .chain(std::iter::repeat("_").take(counts.types + counts.consts))
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        );
-                    }
+            if !self_ty_name.contains('<')
+                && let ty::Adt(def, _) = self_ty.kind()
+            {
+                let generics = self.tcx.generics_of(def.did());
+                if !generics.is_own_empty() {
+                    let counts = generics.own_counts();
+                    self_ty_name += &format!(
+                        "<{}>",
+                        std::iter::repeat("'_")
+                            .take(counts.lifetimes)
+                            .chain(std::iter::repeat("_").take(counts.types + counts.consts))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
                 }
             }
             lint.span_suggestion(

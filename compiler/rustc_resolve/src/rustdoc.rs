@@ -451,10 +451,9 @@ fn parse_links<'md>(doc: &'md str) -> Vec<Box<str>> {
                         | LinkType::Reference
                         | LinkType::Shortcut
                         | LinkType::ShortcutUnknown
-                ) {
-                    if let Some(display_text) = collect_link_data(&mut event_iter) {
-                        links.push(display_text);
-                    }
+                ) && let Some(display_text) = collect_link_data(&mut event_iter)
+                {
+                    links.push(display_text);
                 }
                 if matches!(
                     link_type,

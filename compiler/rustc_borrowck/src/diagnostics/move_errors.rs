@@ -128,36 +128,35 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                 .statements
                 .get(location.statement_index)
                 .map(|stmt| &stmt.kind)
+            && let Some(local) = place.as_local()
         {
-            if let Some(local) = place.as_local() {
-                let local_decl = &self.body.local_decls[local];
-                // opt_match_place is the
-                // match_span is the span of the expression being matched on
-                // match *x.y { ... }        match_place is Some(*x.y)
-                //       ^^^^                match_span is the span of *x.y
-                //
-                // opt_match_place is None for let [mut] x = ... statements,
-                // whether or not the right-hand side is a place expression
-                if let LocalInfo::User(BindingForm::Var(VarBindingForm {
-                    opt_match_place: Some((opt_match_place, match_span)),
-                    binding_mode: _,
-                    opt_ty_info: _,
-                    pat_span: _,
-                })) = *local_decl.local_info()
-                {
-                    let stmt_source_info = self.body.source_info(location);
-                    self.append_binding_error(
-                        grouped_errors,
-                        kind,
-                        original_path,
-                        *move_from,
-                        local,
-                        opt_match_place,
-                        match_span,
-                        stmt_source_info.span,
-                    );
-                    return;
-                }
+            let local_decl = &self.body.local_decls[local];
+            // opt_match_place is the
+            // match_span is the span of the expression being matched on
+            // match *x.y { ... }        match_place is Some(*x.y)
+            //       ^^^^                match_span is the span of *x.y
+            //
+            // opt_match_place is None for let [mut] x = ... statements,
+            // whether or not the right-hand side is a place expression
+            if let LocalInfo::User(BindingForm::Var(VarBindingForm {
+                opt_match_place: Some((opt_match_place, match_span)),
+                binding_mode: _,
+                opt_ty_info: _,
+                pat_span: _,
+            })) = *local_decl.local_info()
+            {
+                let stmt_source_info = self.body.source_info(location);
+                self.append_binding_error(
+                    grouped_errors,
+                    kind,
+                    original_path,
+                    *move_from,
+                    local,
+                    opt_match_place,
+                    match_span,
+                    stmt_source_info.span,
+                );
+                return;
             }
         }
 
@@ -230,12 +229,12 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                         binds_to,
                         ..
                     } = ge
+                        && match_span == *span
+                        && mpi == *other_mpi
                     {
-                        if match_span == *span && mpi == *other_mpi {
-                            debug!("appending local({bind_to:?}) to list");
-                            binds_to.push(bind_to);
-                            return;
-                        }
+                        debug!("appending local({bind_to:?}) to list");
+                        binds_to.push(bind_to);
+                        return;
                     }
                 }
                 debug!("found a new move error location");
@@ -649,10 +648,10 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                 let mut is_raw_ptr = false;
                 if let Some(inner) = inner {
                     let typck_result = self.infcx.tcx.typeck(self.mir_def_id());
-                    if let Some(inner_type) = typck_result.node_type_opt(inner.hir_id) {
-                        if matches!(inner_type.kind(), ty::RawPtr(..)) {
-                            is_raw_ptr = true;
-                        }
+                    if let Some(inner_type) = typck_result.node_type_opt(inner.hir_id)
+                        && matches!(inner_type.kind(), ty::RawPtr(..))
+                    {
+                        is_raw_ptr = true;
                     }
                 }
                 // If the `inner` is a raw pointer, do not suggest removing the "*", see #126863

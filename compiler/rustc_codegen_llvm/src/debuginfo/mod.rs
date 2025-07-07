@@ -389,10 +389,10 @@ impl<'ll, 'tcx> DebugInfoCodegenMethods<'tcx> for CodegenCx<'ll, 'tcx> {
         if self.sess().opts.optimize != config::OptLevel::No {
             spflags |= DISPFlags::SPFlagOptimized;
         }
-        if let Some((id, _)) = tcx.entry_fn(()) {
-            if id == def_id {
-                spflags |= DISPFlags::SPFlagMainSubprogram;
-            }
+        if let Some((id, _)) = tcx.entry_fn(())
+            && id == def_id
+        {
+            spflags |= DISPFlags::SPFlagMainSubprogram;
         }
 
         // When we're adding a method to a type DIE, we only want a DW_AT_declaration there, because

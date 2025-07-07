@@ -111,11 +111,11 @@ pub(crate) fn mod_dir_path(
             // For example, a `mod z { ... }` inside `x/y.rs` should set the current
             // directory path to `/x/y/z`, not `/x/z` with a relative offset of `y`.
             let mut dir_path = module.dir_path.clone();
-            if let DirOwnership::Owned { relative } = &mut dir_ownership {
-                if let Some(ident) = relative.take() {
-                    // Remove the relative offset.
-                    dir_path.push(ident.as_str());
-                }
+            if let DirOwnership::Owned { relative } = &mut dir_ownership
+                && let Some(ident) = relative.take()
+            {
+                // Remove the relative offset.
+                dir_path.push(ident.as_str());
             }
             dir_path.push(ident.as_str());
 
