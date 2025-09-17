@@ -1,6 +1,6 @@
 //! Various utilities for working with [`fmt::Display`] implementations.
 
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Display, Formatter, Write as _};
 
 pub(crate) trait Joined: IntoIterator {
     /// Takes an iterator over elements that implement [`Display`], and format them into `f`, separated by `sep`.
@@ -45,3 +45,41 @@ impl<T: Display> MaybeDisplay for Option<T> {
         })
     }
 }
+
+/// Checks if a an `impl Display`, when printed out, surpasses a certain number of bytes
+/// (without actually allocating and writing to a buffer).
+///
+/// Once the limit has been reached, any remaining format arguments' [`Display::fmt`] implementation will not be invoked.
+pub(crate) fn check_length_surpasses(t: impl Display, limit: usize) -> Result<bool, fmt::Error> {
+    struct Writer {
+        left: usize,
+    }
+
+    impl Writer {
+        fn has_left(&self) -> bool {
+            self.left > 0
+        }
+    }
+
+    impl fmt::Write for Writer {
+        fn write_str(&mut self, s: &str) -> fmt::Result {
+            self.left = self.left.saturating_sub(s.len());
+            Ok(())
+        }
+
+        fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
+            if self.has_left() {
+                fmt::write(self, args)?;
+            }
+
+            Ok(())
+        }
+    }
+
+    let mut w = Writer { left: limit };
+    write!(w, "{t}")?;
+    Ok(!w.has_left())
+}
+
+#[cfg(test)]
+mod tests;

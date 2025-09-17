@@ -30,7 +30,7 @@ use super::url_parts_builder::UrlPartsBuilder;
 use crate::clean::types::ExternalLocation;
 use crate::clean::utils::find_nearest_parent_module;
 use crate::clean::{self, ExternalCrate, PrimitiveType};
-use crate::display::{Joined as _, MaybeDisplay as _};
+use crate::display::{Joined as _, MaybeDisplay as _, check_length_surpasses};
 use crate::formats::cache::Cache;
 use crate::formats::item_type::ItemType;
 use crate::html::escape::{Escape, EscapeBodyText};
@@ -1253,16 +1253,6 @@ pub(crate) fn print_params(params: &[clean::Parameter], cx: &Context<'_>) -> imp
     })
 }
 
-// Implements Write but only counts the bytes "written".
-struct WriteCounter(usize);
-
-impl std::fmt::Write for WriteCounter {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.0 += s.len();
-        Ok(())
-    }
-}
-
 // Implements Display by emitting the given number of spaces.
 struct Indent(usize);
 
@@ -1312,13 +1302,13 @@ impl clean::FnDecl {
         cx: &Context<'_>,
     ) -> impl Display {
         fmt::from_fn(move |f| {
-            // First, generate the text form of the declaration, with no line wrapping, and count the bytes.
-            let mut counter = WriteCounter(0);
-            write!(&mut counter, "{:#}", fmt::from_fn(|f| { self.inner_full_print(None, f, cx) }))
-                .unwrap();
+            // First, generate the text form of the declaration, with no line wrapping, and check if it's too long.
+            let wrap = check_length_surpasses(
+                format_args!("{:#}", fmt::from_fn(|f| { self.inner_full_print(None, f, cx) })),
+                80_usize.saturating_sub(header_len),
+            )?;
             // If the text form was over 80 characters wide, we will line-wrap our output.
-            let line_wrapping_indent =
-                if header_len + counter.0 > 80 { Some(indent) } else { None };
+            let line_wrapping_indent = wrap.then_some(indent);
             // Generate the final output. This happens to accept `{:#}` formatting to get textual
             // output but in practice it is only formatted with `{}` to get HTML output.
             self.inner_full_print(line_wrapping_indent, f, cx)
