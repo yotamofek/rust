@@ -117,14 +117,8 @@ impl AttributeExt for Attribute {
     fn path_matches(&self, name: &[Symbol]) -> bool {
         match &self.kind {
             AttrKind::Normal(normal) => {
-                normal.item.path.segments.len() == name.len()
-                    && normal
-                        .item
-                        .path
-                        .segments
-                        .iter()
-                        .zip(name)
-                        .all(|(s, n)| s.args.is_none() && s.ident.name == *n)
+                normal.item.path.segments.iter().map(|s| &s.ident.name).eq(name)
+                    && normal.item.path.segments.iter().all(|s| s.args.is_none())
             }
             AttrKind::DocComment(..) => false,
         }
