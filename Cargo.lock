@@ -5185,9 +5185,9 @@ dependencies = [
 
 [[package]]
 name = "serde_alloc"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "727f51fdf8729c8fbd227ab2a5745c54c76e8771c63ce1282fd9ba894a7eff78"
+checksum = "f81cbbfd0382ada426bd8d895c0f2aa02105f6d428c53ccd0a13861d35f32b38"
 dependencies = [
  "serde_core",
 ]
