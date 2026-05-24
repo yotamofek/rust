@@ -363,13 +363,13 @@ pub(crate) enum HrefError {
 }
 
 /// Type representing information of an `href` attribute.
-pub(crate) struct HrefInfo {
+pub(crate) struct HrefInfo<A: Allocator + Copy> {
     /// URL to the item page.
     pub(crate) url: String,
     /// Kind of the item (used to generate the `title` attribute).
     pub(crate) kind: ItemType,
     /// Rust path to the item (used to generate the `title` attribute).
-    pub(crate) rust_path: Vec<Symbol>,
+    pub(crate) rust_path: Vec<Symbol, A>,
 }
 
 /// This function is to get the external macro path because they are not in the cache used in
@@ -378,7 +378,7 @@ fn generate_macro_def_id_path<A: Allocator + Copy>(
     def_id: DefId,
     cx: &Context<'_, A>,
     root_path: Option<&str>,
-) -> Result<HrefInfo, HrefError> {
+) -> Result<HrefInfo<A>, HrefError> {
     let tcx = cx.tcx();
     let crate_name = tcx.crate_name(def_id.krate);
     let cache = cx.cache();
@@ -399,7 +399,8 @@ fn generate_macro_def_id_path<A: Allocator + Copy>(
     } else {
         ItemType::Macro
     };
-    let path = clean::inline::get_item_path(tcx, def_id, item_type);
+    let path =
+        clean::inline::get_item_path(tcx, def_id, item_type, *cx.cache().search_index.allocator());
     // The minimum we can have is the crate name followed by the macro name. If shorter, then
     // it means that `relative` was empty, which is an error.
     let [module_path @ .., last] = path.as_slice() else {
@@ -440,13 +441,14 @@ fn generate_item_def_id_path<A: Allocator + Copy>(
     original_def_id: DefId,
     cx: &Context<'_, A>,
     root_path: Option<&str>,
-) -> Result<HrefInfo, HrefError> {
+) -> Result<HrefInfo<A>, HrefError> {
     use rustc_middle::traits::ObligationCause;
     use rustc_trait_selection::infer::TyCtxtInferExt;
     use rustc_trait_selection::traits::query::normalize::QueryNormalizeExt;
 
     let tcx = cx.tcx();
     let crate_name = tcx.crate_name(def_id.krate);
+    let alloc = *cx.cache().search_index.allocator();
 
     // No need to try to infer the actual parent item if it's not an associated item from the `impl`
     // block.
@@ -464,8 +466,10 @@ fn generate_item_def_id_path<A: Allocator + Copy>(
             .unwrap_or(def_id);
     }
 
-    let relative = clean::inline::item_relative_path(tcx, def_id);
-    let fqp: Vec<Symbol> = once(crate_name).chain(relative).collect();
+    let relative =
+        clean::inline::item_relative_path(tcx, def_id, cx.cache().search_index.allocator());
+    let mut fqp = Vec::new_in(alloc);
+    once(crate_name).chain(relative).collect_into(&mut fqp);
 
     let shortty = ItemType::from_def_id(def_id, tcx);
     let module_fqp = to_module_fqp(shortty, &fqp);
@@ -562,7 +566,7 @@ pub(crate) fn href_with_root_path<A: Allocator + Copy>(
     original_did: DefId,
     cx: &Context<'_, A>,
     root_path: Option<&str>,
-) -> Result<HrefInfo, HrefError> {
+) -> Result<HrefInfo<A>, HrefError> {
     let tcx = cx.tcx();
     let def_kind = tcx.def_kind(original_did);
     let did = match def_kind {
@@ -643,7 +647,7 @@ pub(crate) fn href_with_root_path<A: Allocator + Copy>(
 pub(crate) fn href<A: Allocator + Copy>(
     did: DefId,
     cx: &Context<'_, A>,
-) -> Result<HrefInfo, HrefError> {
+) -> Result<HrefInfo<A>, HrefError> {
     href_with_root_path(did, cx, None)
 }
 

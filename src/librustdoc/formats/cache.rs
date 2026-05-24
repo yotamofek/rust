@@ -190,15 +190,19 @@ impl<A: Allocator + Copy> Cache<A> {
             effective_visibilities: Default::default(),
             crate_version: Default::default(),
             masked_crates: Default::default(),
-            stack: Default::default(),
-            parent_stack: Default::default(),
+            stack: Vec::new_in(alloc),
+            parent_stack: Vec::new_in(alloc),
             stripped_mod: Default::default(),
             search_index: Vec::new_in(alloc),
-            orphan_impl_items: Default::default(),
-            orphan_trait_impls: Default::default(),
+            orphan_impl_items: Vec::new_in(alloc),
+            orphan_trait_impls: Vec::new_in(alloc),
             intra_doc_links: Default::default(),
             inlined_items: Default::default(),
         }
+    }
+
+    pub fn allocator(&self) -> A {
+        *self.search_index.allocator()
     }
 
     fn parent_stack_last_impl_and_trait_id(&self) -> (Option<DefId>, Option<DefId>) {

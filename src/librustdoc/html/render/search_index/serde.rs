@@ -1,6 +1,7 @@
 use std::alloc::Allocator;
 use std::fmt;
 
+use rustc_data_structures::fx::FxHashMap;
 use rustc_span::Symbol;
 use serde::de::{self, Error, MapAccess};
 use serde::ser::SerializeSeq as _;
@@ -271,7 +272,7 @@ impl<'de, A: Allocator + Copy> DeserializeWithAlloc<'de, A> for SerializedSearch
                     alias_pointers: alias_pointers.unwrap(),
                     type_data: type_data.unwrap(),
                     generic_inverted_index: generic_inverted_index.unwrap(),
-                    crate_paths_index: Default::default(),
+                    crate_paths_index: FxHashMap::with_hasher_in(Default::default(), self.alloc),
                 })
             }
         }

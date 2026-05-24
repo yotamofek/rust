@@ -34,6 +34,7 @@ use crate::html::markdown::short_markdown_summary;
 use crate::html::render::{
     self, IndexItem, IndexItemFunctionType, IndexItemInfo, RenderType, RenderTypeId,
 };
+use crate::vec_in;
 
 fn serialize_function_data<A: Allocator + Copy, S: Serializer>(
     function_data: &Vec<Option<IndexItemFunctionType<A>>, A>,
@@ -46,15 +47,15 @@ fn serialize_function_data<A: Allocator + Copy, S: Serializer>(
 #[serde(bound = "")]
 pub(crate) struct SerializedSearchIndex<A: Allocator + Copy> {
     // data from disk
-    names: Vec<String>,
-    path_data: Vec<Option<PathData>>,
-    entry_data: Vec<Option<EntryData>>,
-    descs: Vec<String>,
+    names: Vec<String, A>,
+    path_data: Vec<Option<PathData>, A>,
+    entry_data: Vec<Option<EntryData>, A>,
+    descs: Vec<String, A>,
     #[serde(serialize_with = "serialize_function_data")]
     function_data: Vec<Option<IndexItemFunctionType<A>>, A>,
-    alias_pointers: Vec<Option<usize>>,
+    alias_pointers: Vec<Option<usize>, A>,
     // inverted index for concrete types and generics
-    type_data: Vec<Option<TypeData>>,
+    type_data: Vec<Option<TypeData>, A>,
     /// inverted index of generics
     ///
     /// - The outermost list has one entry per alpha-normalized generic.
@@ -66,42 +67,54 @@ pub(crate) struct SerializedSearchIndex<A: Allocator + Copy> {
     ///   show functions that are *missing* parts of the query, so removing..
     ///
     /// - The final layer is the list of functions.
-    generic_inverted_index: Vec<Vec<Vec<u32>>>,
+    generic_inverted_index: Vec<Vec<Vec<u32, A>, A>, A>,
     // generated in-memory backref cache
     #[serde(skip)]
-    crate_paths_index: FxHashMap<(ItemType, Vec<Symbol>), usize>,
+    crate_paths_index: FxHashMap<(ItemType, Vec<Symbol, A>), usize, A>,
 }
 
 impl<A: Allocator + Copy> SerializedSearchIndex<A> {
     pub(super) fn empty(alloc: A) -> Self {
         Self {
-            names: Default::default(),
-            path_data: Default::default(),
-            entry_data: Default::default(),
-            descs: Default::default(),
+            names: Vec::new_in(alloc),
+            path_data: Vec::new_in(alloc),
+            entry_data: Vec::new_in(alloc),
+            descs: Vec::new_in(alloc),
             function_data: Vec::new_in(alloc),
-            alias_pointers: Default::default(),
-            type_data: Default::default(),
-            generic_inverted_index: Default::default(),
-            crate_paths_index: Default::default(),
+            alias_pointers: Vec::new_in(alloc),
+            type_data: Vec::new_in(alloc),
+            generic_inverted_index: Vec::new_in(alloc),
+            crate_paths_index: FxHashMap::with_hasher_in(Default::default(), alloc),
         }
     }
 
     fn load(doc_root: &Path, resource_suffix: &str, alloc: A) -> Result<Self, Error> {
-        let mut names: Vec<String> = Vec::new();
-        let mut path_data: Vec<Option<PathData>> = Vec::new();
-        let mut entry_data: Vec<Option<EntryData>> = Vec::new();
-        let mut descs: Vec<String> = Vec::new();
+        let mut names: Vec<String, _> = Vec::new_in(alloc);
+        let mut path_data: Vec<Option<PathData>, _> = Vec::new_in(alloc);
+        let mut entry_data: Vec<Option<EntryData>, _> = Vec::new_in(alloc);
+        let mut descs: Vec<String, _> = Vec::new_in(alloc);
         let mut function_data: Vec<Option<IndexItemFunctionType<A>>, _> = Vec::new_in(alloc);
-        let mut type_data: Vec<Option<TypeData>> = Vec::new();
-        let mut alias_pointers: Vec<Option<usize>> = Vec::new();
+        let mut type_data: Vec<Option<TypeData>, _> = Vec::new_in(alloc);
+        let mut alias_pointers: Vec<Option<usize>, _> = Vec::new_in(alloc);
 
-        let mut generic_inverted_index: Vec<Vec<Vec<u32>>> = Vec::new();
+        let mut generic_inverted_index: Vec<Vec<Vec<u32, _>, _>, _> = Vec::new_in(alloc);
 
         match perform_read_strings(resource_suffix, doc_root, "name", &mut names) {
             Ok(()) => {
-                perform_read_serde(resource_suffix, doc_root, "path", &mut path_data)?;
-                perform_read_serde(resource_suffix, doc_root, "entry", &mut entry_data)?;
+                perform_read_serde_with_alloc(
+                    resource_suffix,
+                    doc_root,
+                    "path",
+                    &mut path_data,
+                    alloc,
+                )?;
+                perform_read_serde_with_alloc(
+                    resource_suffix,
+                    doc_root,
+                    "entry",
+                    &mut entry_data,
+                    alloc,
+                )?;
                 perform_read_strings(resource_suffix, doc_root, "desc", &mut descs)?;
                 perform_read_serde_with_alloc(
                     resource_suffix,
@@ -253,13 +266,15 @@ impl<A: Allocator + Copy> SerializedSearchIndex<A> {
         // generic_inverted_index is not the same length as other columns,
         // because it's actually a completely different set of objects
 
-        let mut crate_paths_index: FxHashMap<(ItemType, Vec<Symbol>), usize> = FxHashMap::default();
+        let mut crate_paths_index: FxHashMap<(ItemType, Vec<Symbol, A>), usize, _> =
+            FxHashMap::with_hasher_in(Default::default(), alloc);
         for (i, (name, path_data)) in names.iter().zip(path_data.iter()).enumerate() {
             if let Some(path_data) = path_data {
                 let full_path = if path_data.module_path.is_empty() {
-                    vec![Symbol::intern(name)]
+                    vec_in![in: alloc, Symbol::intern(name)]
                 } else {
-                    let mut full_path = path_data.module_path.to_vec();
+                    let mut full_path = Vec::new_in(alloc);
+                    full_path.extend_from_slice(&path_data.module_path);
                     full_path.push(Symbol::intern(name));
                     full_path
                 };
@@ -290,13 +305,15 @@ impl<A: Allocator + Copy> SerializedSearchIndex<A> {
         alias_pointer: Option<usize>,
     ) -> usize {
         let index = self.names.len();
+        let alloc = *self.function_data.allocator();
         assert_eq!(self.names.len(), self.path_data.len());
         if let Some(path_data) = &path_data
             && let name = Symbol::intern(&name)
             && let fqp = if path_data.module_path.is_empty() {
-                vec![name]
+                vec_in![in: alloc, name]
             } else {
-                let mut v = path_data.module_path.clone();
+                let mut v = vec_in![in: alloc];
+                v.extend_from_slice(&path_data.module_path);
                 v.push(name);
                 v
             }
@@ -323,7 +340,9 @@ impl<A: Allocator + Copy> SerializedSearchIndex<A> {
     ///
     /// The returned ID can be used to attach more data to the search result.
     fn add_entry(&mut self, name: Symbol, entry_data: EntryData, desc: String) -> usize {
-        let fqp = if let Some(module_path_index) = entry_data.module_path {
+        let alloc = *self.function_data.allocator();
+        let mut fqp = vec_in![in: alloc];
+        if let Some(module_path_index) = entry_data.module_path {
             self.path_data[module_path_index]
                 .as_ref()
                 .unwrap()
@@ -331,10 +350,10 @@ impl<A: Allocator + Copy> SerializedSearchIndex<A> {
                 .iter()
                 .copied()
                 .chain([Symbol::intern(&self.names[module_path_index]), name])
-                .collect()
+                .collect_into(&mut fqp);
         } else {
-            vec![name]
-        };
+            fqp.push(name);
+        }
         // If a path with the same name already exists, but no entry does,
         // we can fill in the entry without having to allocate a new row ID.
         //
@@ -363,7 +382,7 @@ impl<A: Allocator + Copy> SerializedSearchIndex<A> {
 
     fn get_id_by_module_path(&mut self, path: &[Symbol]) -> usize {
         let ty = if path.len() == 1 { ItemType::ExternCrate } else { ItemType::Module };
-        match self.crate_paths_index.entry((ty, path.to_vec())) {
+        match self.crate_paths_index.entry((ty, path.to_vec_in(*self.function_data.allocator()))) {
             Entry::Occupied(index) => *index.get(),
             Entry::Vacant(slot) => {
                 slot.insert(self.path_data.len());
@@ -383,8 +402,13 @@ impl<A: Allocator + Copy> SerializedSearchIndex<A> {
         for (other_pathid, other_path_data) in other.path_data.iter().enumerate() {
             if let Some(other_path_data) = other_path_data {
                 let name = Symbol::intern(&other.names[other_pathid]);
-                let fqp =
-                    other_path_data.module_path.iter().copied().chain(iter::once(name)).collect();
+                let mut fqp = vec_in![in: *self.function_data.allocator()];
+                other_path_data
+                    .module_path
+                    .iter()
+                    .copied()
+                    .chain(iter::once(name))
+                    .collect_into(&mut fqp);
                 let self_pathid = other_entryid_offset + other_pathid;
                 let self_pathid = match self.crate_paths_index.entry((other_path_data.ty, fqp)) {
                     Entry::Vacant(slot) => {
@@ -801,22 +825,21 @@ impl<A: Allocator + Copy> SerializedSearchIndex<A> {
                 }),
             );
         }
-        new.generic_inverted_index = self
-            .generic_inverted_index
+        self.generic_inverted_index
             .into_iter()
             .map(|mut postings| {
                 for list in postings.iter_mut() {
-                    let mut new_list: Vec<u32> = list
-                        .iter()
+                    let mut new_list = Vec::new_in(alloc);
+                    list.iter()
                         .copied()
                         .filter_map(|id| u32::try_from(*map.get(&usize::try_from(id).ok()?)?).ok())
-                        .collect();
+                        .collect_into(&mut new_list);
                     new_list.sort();
                     *list = new_list;
                 }
                 postings
             })
-            .collect();
+            .collect_into(&mut new.generic_inverted_index);
         new
     }
 
@@ -1114,7 +1137,7 @@ impl<'de> Deserialize<'de> for PathData {
 }
 
 #[derive(Clone, Debug)]
-struct TypeData {
+struct TypeData<A: Allocator + Copy> {
     /// If set to "true", the generics can be matched without having to
     /// mention the type itself. The truth table, assuming `Unboxable`
     /// has `search_unbox = true` and `Inner` has `search_unbox = false`
@@ -1136,10 +1159,10 @@ struct TypeData {
     ///   show functions that are *missing* parts of the query, so removing..
     ///
     /// - The inner layer is the list of functions.
-    inverted_function_inputs_index: Vec<Vec<u32>>,
+    inverted_function_inputs_index: Vec<Vec<u32, A>, A>,
     /// List of functions that mention this type in their type signature,
     /// on the right side of the `->` arrow.
-    inverted_function_output_index: Vec<Vec<u32>>,
+    inverted_function_output_index: Vec<Vec<u32, A>, A>,
 }
 
 impl Serialize for TypeData {
@@ -1393,7 +1416,7 @@ pub(crate) fn build_index<A: Allocator + Copy>(
     let crate_doc =
         short_markdown_summary(&krate.module.doc_value(), &krate.module.link_names(cache));
     let crate_idx = {
-        let crate_path = (ItemType::ExternCrate, vec![crate_name]);
+        let crate_path = (ItemType::ExternCrate, vec_in![in: cache.allocator(), crate_name]);
         match serialized_index.crate_paths_index.entry(crate_path) {
             Entry::Occupied(index) => {
                 let index = *index.get();
@@ -1649,7 +1672,10 @@ pub(crate) fn build_index<A: Allocator + Copy>(
             used_in_function_signature: &mut BTreeSet<isize>,
         ) -> RenderTypeId {
             let pathid = serialized_index.names.len();
-            let pathid = match serialized_index.crate_paths_index.entry((ty, path.to_vec())) {
+            let pathid = match serialized_index
+                .crate_paths_index
+                .entry((ty, path.to_vec_in(*serialized_index.function_data.allocator())))
+            {
                 Entry::Occupied(entry) => {
                     let id = *entry.get();
                     if serialized_index.type_data[id].as_mut().is_none() {
@@ -2004,7 +2030,7 @@ pub(crate) fn build_index<A: Allocator + Copy>(
                             if generic_id >= serialized_index.generic_inverted_index.len() {
                                 serialized_index
                                     .generic_inverted_index
-                                    .resize(generic_id + 1, Vec::new());
+                                    .resize(generic_id + 1, Vec::new_in(alloc));
                             }
                             &mut serialized_index.generic_inverted_index[generic_id]
                         };
